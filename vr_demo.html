@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simora — VR Demo</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0D0F1A; color: #fff; font-family: -apple-system, sans-serif; overflow: hidden; }
+#overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: linear-gradient(135deg, #0D0F1A 0%, #161A2E 100%); z-index: 100; }
+#overlay h1 { font-size: 42px; font-weight: 500; color: #00D4FF; letter-spacing: 4px; }
+#overlay p { font-size: 16px; color: #94A3B8; text-align: center; max-width: 420px; line-height: 1.7; }
+.task-badge { background: #0C2A3A; border: 0.5px solid #00D4FF; border-radius: 6px; padding: 8px 16px; font-size: 13px; color: #00D4FF; }
+#vr-btn { background: #00D4FF; color: #0D0F1A; border: none; border-radius: 8px; padding: 14px 36px; font-size: 16px; font-weight: 500; cursor: pointer; margin-top: 8px; }
+#vr-btn:hover { background: #00B8E0; }
+#flat-btn { background: transparent; color: #94A3B8; border: 0.5px solid #2D3A5A; border-radius: 8px; padding: 10px 28px; font-size: 14px; cursor: pointer; }
+#flat-btn:hover { color: #fff; border-color: #fff; }
+#back-btn { position: fixed; top: 16px; left: 16px; z-index: 200; background: rgba(13,15,26,0.85); border: 0.5px solid #1E2A45; color: #94A3B8; border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer; text-decoration: none; }
+#hud { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; display: none; flex-direction: column; background: linear-gradient(to top, rgba(13,15,26,0.95), transparent); padding: 20px 28px 16px; }
+#hud.visible { display: flex; }
+.hud-row { display: flex; justify-content: space-between; align-items: center; }
+.hud-task { font-size: 12px; color: #00D4FF; }
+.hud-timer { font-size: 18px; font-weight: 500; font-family: monospace; }
+.hud-status { font-size: 12px; color: #10B981; }
+.hud-controls { display: flex; gap: 16px; margin-top: 8px; }
+.hud-ctrl { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94A3B8; }
+.kbd { background: #1E2A45; border-radius: 3px; padding: 2px 6px; font-family: monospace; font-size: 10px; }
+#step-hud { position: fixed; top: 60px; right: 16px; z-index: 50; display: none; flex-direction: column; gap: 6px; }
+#step-hud.visible { display: flex; }
+.step-item { background: rgba(13,15,26,0.85); border: 0.5px solid #1E2A45; border-radius: 6px; padding: 6px 12px; font-size: 11px; color: #94A3B8; }
+.step-item.active { border-color: #00D4FF; color: #fff; }
+.step-item.done { border-color: #10B981; color: #10B981; }
+#earnings-hud { position: fixed; top: 60px; left: 16px; z-index: 50; display: none; background: rgba(10,32,16,0.9); border: 0.5px solid #10B981; border-radius: 8px; padding: 12px 16px; }
+#earnings-hud.visible { display: flex; flex-direction: column; gap: 2px; }
+.earn-label { font-size: 10px; color: #10B981; }
+.earn-val { font-size: 20px; font-weight: 500; color: #10B981; }
+#success-screen { position: fixed; inset: 0; z-index: 150; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 16px; background: rgba(13,15,26,0.92); backdrop-filter: blur(4px); }
+#success-screen.show { display: flex; }
+#success-screen h2 { font-size: 32px; color: #10B981; }
+#success-screen p { font-size: 15px; color: #94A3B8; }
+.success-btns { display: flex; gap: 12px; margin-top: 8px; }
+.sbtn-primary { background: #10B981; color: #fff; border: none; border-radius: 8px; padding: 12px 28px; font-size: 14px; cursor: pointer; }
+.sbtn-sec { background: transparent; color: #94A3B8; border: 0.5px solid #2D3A5A; border-radius: 8px; padding: 12px 24px; font-size: 14px; cursor: pointer; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<a href="simora.html" id="back-btn">← Back to Simora</a>
+<div id="overlay">
+  <div style="font-size:13px;color:#94A3B8;letter-spacing:3px;text-transform:uppercase;">Simora · VR Demo</div>
+  <h1>SIMORA</h1>
+  <div class="task-badge">Isaac-PickPlace-RedBlock-G129-Dex1</div>
+  <p>Control a Unitree G1 humanoid robot. Pick up the red block and place it in the yellow target zone.</p>
+  <button id="vr-btn" onclick="enterVR()">🥽 Enter VR (Meta Quest 3)</button>
+  <button id="flat-btn" onclick="startFlat()">▶ Play in Browser</button>
+  <div style="font-size:11px;color:#4A5568;margin-top:4px;">On Quest 3: open this URL in the browser, then tap Enter VR</div>
+</div>
+<div id="hud">
+  <div class="hud-row">
+    <span class="hud-task">Isaac-PickPlace-RedBlock-G129-Dex1 · Unitree G1</span>
+    <span class="hud-timer" id="hud-timer">00:00</span>
+    <span class="hud-status" id="hud-status">● Ready</span>
+  </div>
+  <div class="hud-controls">
+    <div class="hud-ctrl"><span class="kbd">Mouse</span> Rotate camera</div>
+    <div class="hud-ctrl"><span class="kbd">W S</span> Forward / Back</div>
+    <div class="hud-ctrl"><span class="kbd">A D</span> Left / Right</div>
+    <div class="hud-ctrl"><span class="kbd">Q E</span> Elbow bend</div>
+    <div class="hud-ctrl"><span class="kbd">Space</span> Grab / Release</div>
+    <div class="hud-ctrl"><span class="kbd">R</span> Reset</div>
+  </div>
+</div>
+<div id="step-hud">
+  <div class="step-item done"   id="s1">✓ Observe scene</div>
+  <div class="step-item active" id="s2">→ Grab red block</div>
+  <div class="step-item"        id="s3">○ Move to target</div>
+  <div class="step-item"        id="s4">○ Release block</div>
+</div>
+<div id="earnings-hud">
+  <div class="earn-label">Session earnings</div>
+  <div class="earn-val" id="earn-val">€0.00</div>
+  <div style="font-size:10px;color:#94A3B8;" id="earn-eps">0 episodes</div>
+</div>
+<div id="success-screen">
+  <div style="font-size:52px;">✅</div>
+  <h2>Episode Complete!</h2>
+  <p>Red block placed in target zone · +€0.20 earned</p>
+  <div class="success-btns">
+    <button class="sbtn-primary" onclick="resetEpisode()">Next Episode →</button>
+    <button class="sbtn-sec" onclick="window.location.href='simora.html#marketplace'">Back to Tasks</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
+
+let scene, camera, renderer, controls, clock;
+let robot = {};
+let redBlock, targetZone;
+let grabbed = false, isComplete = false;
+let sessionEarnings = 0, sessionEps = 0;
+let timerInterval = null, seconds = 0;
+let keys = {}, animTime = 0;
+
+// ── MATERIALS (G1 palette)
+const white    = () => new THREE.MeshPhongMaterial({ color:0xE8EBF0, shininess:120 });
+const darkGrey = () => new THREE.MeshPhongMaterial({ color:0x2A2D35, shininess:80  });
+const joint    = () => new THREE.MeshPhongMaterial({ color:0x1A1D24, shininess:40  });
+const silver   = () => new THREE.MeshPhongMaterial({ color:0x9098A8, shininess:100 });
+const cyan     = () => new THREE.MeshPhongMaterial({ color:0x00D4FF, shininess:200, emissive:0x003344 });
+const black    = () => new THREE.MeshPhongMaterial({ color:0x111318, shininess:60  });
+
+// ── HELPERS
+function box(w,h,d,mat,cast=true){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.castShadow=cast; m.receiveShadow=true; return m;
+}
+function sph(r,mat){
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r,16,16), mat);
+  m.castShadow=true; return m;
+}
+function cyl(rt,rb,h,mat){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,16), mat);
+  m.castShadow=true; return m;
+}
+
+// ── BUILD ARM
+// Key insight: the arm hangs DOWN (-Y). 
+// The hand should extend in the SAME direction as the forearm (also -Y).
+// So NO rotation on the hand group — fingers just extend further down.
+// To point toward table we rotate the UPPER ARM forward (+X rotation).
+function buildArm(root, side) {
+  // side: -1 = robot's right (screen-left), 1 = robot's left (screen-right)
+  const arm = {};
+  const ox = side * 0.22; // shoulder X offset from spine
+
+  // Shoulder sphere
+  const sh = sph(0.07, joint());
+  sh.position.set(ox, 1.40, 0);
+  root.add(sh);
+
+  // ── Upper arm group — pivot at shoulder
+  const ug = new THREE.Group();
+  ug.position.set(ox, 1.40, 0);
+  root.add(ug);
+  arm.ug = ug;
+
+  const uaInner = box(0.085, 0.26, 0.10, white());
+  uaInner.position.set(0, -0.13, 0);
+  ug.add(uaInner);
+
+  const uaOuter = box(0.04, 0.22, 0.085, darkGrey());
+  uaOuter.position.set(side*0.065, -0.13, 0);
+  ug.add(uaOuter);
+
+  const elbow = sph(0.056, joint());
+  elbow.position.set(0, -0.27, 0);
+  ug.add(elbow);
+
+  // ── Fore arm group — pivot at elbow
+  const fg = new THREE.Group();
+  fg.position.set(0, -0.27, 0);
+  ug.add(fg);
+  arm.fg = fg;
+
+  const faInner = box(0.075, 0.24, 0.09, white());
+  faInner.position.set(0, -0.12, 0);
+  fg.add(faInner);
+
+  const faOuter = box(0.038, 0.20, 0.075, silver());
+  faOuter.position.set(side*0.042, -0.12, 0);
+  fg.add(faOuter);
+
+  const wrist = sph(0.044, joint());
+  wrist.position.set(0, -0.245, 0);
+  fg.add(wrist);
+
+  // ── Hand group — NO extra rotation, extends in same -Y direction as arm
+  const hg = new THREE.Group();
+  hg.position.set(0, -0.245, 0);
+  fg.add(hg);
+  arm.hg = hg;
+
+  // Palm — flat box extending DOWN from wrist
+  const palm = box(0.095, 0.075, 0.055, darkGrey());
+  palm.position.set(0, -0.038, 0);
+  hg.add(palm);
+
+  // Fingers — extend DOWN from palm (-Y), same direction as whole arm
+  // 3 main fingers
+  [-0.028, 0, 0.028].forEach((fz, i) => {
+    const finger = box(0.020, 0.065, 0.020, black());
+    finger.position.set(0, -0.105, fz);
+    hg.add(finger);
+  });
+
+  // Thumb — extends sideways from palm
+  const thumb = box(0.020, 0.048, 0.020, black());
+  thumb.position.set(side * 0.050, -0.068, 0);
+  thumb.rotation.z = side * -0.35;
+  hg.add(thumb);
+
+  arm.hg = hg;
+
+  // ── Initial pose: arm reaches forward and slightly down toward table
+  // Positive X rotation = arm swings forward (toward +Z = toward table since root is rotated 180)
+  ug.rotation.x = 0.75;  // reach forward
+  ug.rotation.z = side * -0.22; // slight outward spread
+  fg.rotation.x = 0.45;  // natural elbow bend
+
+  return arm;
+}
+
+// ── BUILD G1 ROBOT
+function buildG1() {
+  const root = new THREE.Group();
+  root.position.set(0, 0, -0.45);
+  root.rotation.y = Math.PI; // face table
+  scene.add(root);
+  robot.root = root;
+
+  // Pelvis
+  const pelvis = box(0.30, 0.14, 0.18, darkGrey());
+  pelvis.position.set(0, 0.92, 0);
+  root.add(pelvis);
+
+  // Torso lower
+  const torsoL = box(0.34, 0.20, 0.20, white());
+  torsoL.position.set(0, 1.12, 0);
+  root.add(torsoL);
+
+  // Torso upper
+  const torsoU = box(0.36, 0.22, 0.20, white());
+  torsoU.position.set(0, 1.34, 0);
+  root.add(torsoU);
+
+  // Chest panel
+  const cp = box(0.16, 0.10, 0.03, darkGrey());
+  cp.position.set(0, 0.04, 0.10);
+  torsoU.add(cp);
+
+  // Cyan diamond
+  const dm = box(0.065, 0.065, 0.026, cyan());
+  dm.rotation.z = Math.PI/4;
+  dm.position.set(0, 0.04, 0.115);
+  torsoU.add(dm);
+
+  // Side panels
+  [-1,1].forEach(s => {
+    const sp = box(0.04, 0.18, 0.16, darkGrey());
+    sp.position.set(s*0.19, 0, 0);
+    torsoU.add(sp);
+  });
+
+  // Back panel
+  const bp = box(0.28, 0.18, 0.03, darkGrey());
+  bp.position.set(0, 0, -0.115);
+  torsoU.add(bp);
+
+  // Neck
+  const neck = cyl(0.046, 0.052, 0.09, joint());
+  neck.position.set(0, 1.50, 0);
+  root.add(neck);
+
+  // ── HEAD — counter-rotated so visor faces table (camera side)
+  const headG = new THREE.Group();
+  headG.position.set(0, 1.66, 0);
+  headG.rotation.y = Math.PI; // face same direction as camera
+  root.add(headG);
+  robot.headG = headG;
+
+  const headMain = box(0.20, 0.22, 0.20, white());
+  headG.add(headMain);
+
+  const forehead = box(0.20, 0.06, 0.03, darkGrey());
+  forehead.position.set(0, 0.07, 0.10);
+  headG.add(forehead);
+
+  const visor = box(0.18, 0.04, 0.026, cyan());
+  visor.position.set(0, 0.03, 0.112);
+  headG.add(visor);
+
+  const visorGlow = new THREE.PointLight(0x00D4FF, 0.4, 0.5);
+  visorGlow.position.set(0, 0.03, 0.18);
+  headG.add(visorGlow);
+
+  const chin = box(0.18, 0.05, 0.03, darkGrey());
+  chin.position.set(0, -0.07, 0.10);
+  headG.add(chin);
+
+  [-1,1].forEach(s => {
+    const hs = box(0.025, 0.18, 0.16, darkGrey());
+    hs.position.set(s*0.11, 0, 0);
+    headG.add(hs);
+  });
+
+  // ── ARMS
+  // robot.rightArm = side -1 (screen-left) — CONTROLLED
+  // robot.leftArm  = side  1 (screen-right) — passive
+  robot.rightArm = buildArm(root, 1);
+  robot.leftArm  = buildArm(root, -1);
+
+  // ── LEGS
+  [-1,1].forEach(side => {
+    const hip = sph(0.065, joint());
+    hip.position.set(side*0.10, 0.88, 0);
+    root.add(hip);
+
+    const ul = box(0.10, 0.28, 0.12, white());
+    ul.position.set(side*0.10, 0.68, 0);
+    root.add(ul);
+
+    const knee = sph(0.055, joint());
+    knee.position.set(side*0.10, 0.52, 0);
+    root.add(knee);
+
+    const ll = box(0.085, 0.26, 0.10, white());
+    ll.position.set(side*0.10, 0.33, 0.01);
+    root.add(ll);
+
+    const ankle = sph(0.045, joint());
+    ankle.position.set(side*0.10, 0.18, 0);
+    root.add(ankle);
+
+    const foot = box(0.10, 0.06, 0.18, darkGrey());
+    foot.position.set(side*0.10, 0.13, 0.03);
+    root.add(foot);
+  });
+}
+
+// ── BUILD SCENE
+function buildScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x141828);
+  scene.fog = new THREE.Fog(0x141828, 10, 22);
+
+  camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
+  camera.position.set(0, 2.0, 3.8);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.3);
+  sun.position.set(4,7,5); sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048);
+  sun.shadow.camera.left=-5; sun.shadow.camera.right=5;
+  sun.shadow.camera.top=5; sun.shadow.camera.bottom=-5;
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x6688cc, 0.35);
+  fill.position.set(-4,3,-3); scene.add(fill);
+
+  // Floor + grid
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(16,16), new THREE.MeshLambertMaterial({color:0x1a1f2e}));
+  floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+  scene.add(new THREE.GridHelper(16,32,0x252D42,0x1E2840));
+
+  // Table
+  const tMat = new THREE.MeshPhongMaterial({color:0xD8D0C0,shininess:40});
+  const lMat = new THREE.MeshPhongMaterial({color:0x808080,shininess:60});
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.7,0.05,0.85),tMat);
+  top.position.set(0,1.0,0.25); top.castShadow=top.receiveShadow=true; scene.add(top);
+  const tray = new THREE.Mesh(new THREE.BoxGeometry(0.38,0.02,0.28),new THREE.MeshPhongMaterial({color:0xAAAAAA,shininess:80}));
+  tray.position.set(0.28,1.035,0.14); scene.add(tray);
+  [[-0.78,0.5,0.65],[-0.78,0.5,-0.15],[0.78,0.5,0.65],[0.78,0.5,-0.15]].forEach(([x,y,z])=>{
+    const leg=new THREE.Mesh(new THREE.BoxGeometry(0.06,1.0,0.06),lMat);
+    leg.position.set(x,y,z); leg.castShadow=true; scene.add(leg);
+  });
+
+  // Back wall
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x1a1f2e });
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(16, 6), wallMat);
+  wall.position.set(0, 3, -5);
+  scene.add(wall);
+
+  // SIMORA text on wall
+  const wallCanvas = document.createElement('canvas');
+  wallCanvas.width = 1024; wallCanvas.height = 256;
+  const wCtx = wallCanvas.getContext('2d');
+  wCtx.fillStyle = '#0D0F1A';
+  wCtx.fillRect(0, 0, 1024, 256);
+  wCtx.fillStyle = '#00D4FF';
+  wCtx.font = 'bold 180px Arial';
+  wCtx.textAlign = 'center';
+  wCtx.textBaseline = 'middle';
+  wCtx.fillText('SIMORA', 512, 128);
+  const wallTex = new THREE.CanvasTexture(wallCanvas);
+  const wallSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(5, 1.2),
+    new THREE.MeshBasicMaterial({ map: wallTex, transparent: true })
+  );
+  wallSign.position.set(0, 3.2, -4.95);
+  scene.add(wallSign);
+  
+  // Robot
+  buildG1();
+
+  // Red block
+  redBlock = box(0.12,0.12,0.12,new THREE.MeshPhongMaterial({color:0xEF4444,shininess:80}));
+  redBlock.position.set(-0.28,1.08,0.12); scene.add(redBlock);
+  const outline = new THREE.Mesh(new THREE.BoxGeometry(0.135,0.135,0.135),
+    new THREE.MeshBasicMaterial({color:0xEF4444,side:THREE.BackSide,transparent:true,opacity:0.25}));
+  redBlock.add(outline);
+
+  // Target zone
+  const tgMat = new THREE.MeshBasicMaterial({color:0xF59E0B,transparent:true,opacity:0.65});
+  targetZone = new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.19,0.005,32),tgMat);
+  targetZone.position.set(0.30,1.015,0.12); scene.add(targetZone);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.18,0.215,32),
+    new THREE.MeshBasicMaterial({color:0xF59E0B,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2; ring.position.set(0.30,1.017,0.12); scene.add(ring);
+
+  // Labels
+  addLabel('Place here', new THREE.Vector3(0.30,1.16,0.12),'#F59E0B');
+  addLabel('Red Block',  new THREE.Vector3(-0.28,1.24,0.12),'#EF4444');
+
+  // Shelves
+  buildShelf(-3.5,-3.2);
+  buildShelf( 3.5,-3.2);
+
+  // Controls
+  controls = new OrbitControls(camera,renderer.domElement);
+  controls.target.set(0,1.2,0);
+  controls.enableDamping=true; controls.dampingFactor=0.06;
+  controls.minDistance=1.8; controls.maxDistance=7;
+  controls.maxPolarAngle=Math.PI*0.82;
+
+  clock = new THREE.Clock();
+  document.addEventListener('keydown',e=>{ keys[e.code]=true; if(e.code==='Space'){e.preventDefault();toggleGrab();} if(e.code==='KeyR')resetEpisode(); });
+  document.addEventListener('keyup',  e=>{ keys[e.code]=false; });
+  window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); });
+  renderer.setAnimationLoop(animate);
+}
+
+function buildShelf(x,z){
+  const fMat=new THREE.MeshPhongMaterial({color:0x707880,shininess:40});
+  const yMat=new THREE.MeshPhongMaterial({color:0xF59E0B,shininess:30});
+  const bMat=new THREE.MeshPhongMaterial({color:0x3B82F6,shininess:30});
+  [0.35,0.80,1.25,1.70].forEach(h=>{
+    const b=new THREE.Mesh(new THREE.BoxGeometry(1.3,0.03,0.42),fMat);
+    b.position.set(x,h,z); b.castShadow=b.receiveShadow=true; scene.add(b);
+  });
+  [[-0.60,-0.18],[-0.60,0.18],[0.60,-0.18],[0.60,0.18]].forEach(([px,pz])=>{
+    const p=new THREE.Mesh(new THREE.BoxGeometry(0.045,2.0,0.045),fMat);
+    p.position.set(x+px,1.0,z+pz); p.castShadow=true; scene.add(p);
+  });
+  [-0.32,0,0.32].forEach(bx=>{
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.16,0.14),yMat);
+    b.position.set(x+bx,0.44,z); b.castShadow=true; scene.add(b);
+  });
+  [-0.28,0.28].forEach(bx=>{
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.14,0.14),bMat);
+    b.position.set(x+bx,0.88,z); b.castShadow=true; scene.add(b);
+  });
+}
+
+function addLabel(text,pos,color){
+  const c=document.createElement('canvas'); c.width=256; c.height=64;
+  const ctx=c.getContext('2d'); ctx.clearRect(0,0,256,64);
+  ctx.fillStyle=color; ctx.font='bold 26px Arial'; ctx.textAlign='center';
+  ctx.fillText(text,128,40);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));
+  sp.position.copy(pos); sp.scale.set(0.45,0.11,1); scene.add(sp);
+}
+
+function animate(){
+  const delta=clock.getDelta(); animTime+=delta; controls.update();
+
+  // Idle sway
+  if(robot.root) robot.root.position.y=Math.sin(animTime*1.2)*0.004;
+  if(robot.headG) robot.headG.rotation.y=Math.PI+Math.sin(animTime*0.4)*0.05;
+
+  if(!isComplete && robot.rightArm){
+    const spd=1.4*delta;
+    const ug=robot.rightArm.ug, fg=robot.rightArm.fg;
+    // W = reach more forward (more table), S = pull back
+    if(keys['KeyW']||keys['ArrowUp'])   { ug.rotation.x+=spd*1.5; }
+    if(keys['KeyS']||keys['ArrowDown']) { ug.rotation.x-=spd*1.5; }
+    if(keys['KeyA']||keys['ArrowLeft']) { ug.rotation.z-=spd*1.5; }
+    if(keys['KeyD']||keys['ArrowRight']){ ug.rotation.z+=spd*1.5; }
+    if(keys['KeyQ']){ fg.rotation.x-=spd*0.4; }
+    if(keys['KeyE']){ fg.rotation.x+=spd*0.4; }
+
+    // Block follows hand when grabbed
+    if(grabbed){
+      const hw=new THREE.Vector3();
+      robot.rightArm.hg.getWorldPosition(hw);
+      redBlock.position.lerp(hw,0.18);
+      const dist=Math.sqrt(Math.pow(redBlock.position.x-targetZone.position.x,2)+Math.pow(redBlock.position.z-targetZone.position.z,2));
+      targetZone.material.color.set(dist<0.22?0x10B981:0xF59E0B);
+      targetZone.material.opacity=dist<0.22?0.9:0.65;
+    }
+  }
+
+  // Target pulse
+  const p=0.96+Math.sin(animTime*3)*0.04;
+  targetZone.scale.set(p,1,p);
+  renderer.render(scene,camera);
+}
+
+function toggleGrab(){
+  if(isComplete)return;
+  if(!grabbed){
+    grabbed=true;
+    updateStatus('● Block Grabbed','#00D4FF');
+    document.getElementById('s2').className='step-item done';
+    document.getElementById('s2').textContent='✓ Grabbed red block';
+    document.getElementById('s3').className='step-item active';
+    if(robot.rightArm) robot.rightArm.fg.rotation.x=0.7; // close elbow
+  } else {
+    grabbed=false;
+    const dist=Math.sqrt(Math.pow(redBlock.position.x-targetZone.position.x,2)+Math.pow(redBlock.position.z-targetZone.position.z,2));
+    if(dist<0.40){ completeEpisode(); }
+    else{
+      updateStatus('● Released','#F59E0B');
+      if(robot.rightArm) robot.rightArm.fg.rotation.x=0.45;
+    }
+  }
+}
+
+function completeEpisode(){
+  isComplete=true; grabbed=false;
+  sessionEarnings+=0.20; sessionEps++;
+  document.getElementById('earn-val').textContent='€'+sessionEarnings.toFixed(2);
+  document.getElementById('earn-eps').textContent=sessionEps+' episode'+(sessionEps>1?'s':'');
+  clearInterval(timerInterval);
+  document.getElementById('s3').className='step-item done'; document.getElementById('s3').textContent='✓ Moved to target';
+  document.getElementById('s4').className='step-item done'; document.getElementById('s4').textContent='✓ Block placed!';
+  updateStatus('● Complete!','#10B981');
+  redBlock.position.copy(targetZone.position); redBlock.position.y=1.06;
+  targetZone.material.color.set(0x10B981);
+  setTimeout(()=>document.getElementById('success-screen').classList.add('show'),800);
+}
+
+function startTimer(){
+  seconds=0; clearInterval(timerInterval);
+  timerInterval=setInterval(()=>{
+    seconds++;
+    document.getElementById('hud-timer').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');
+  },1000);
+}
+
+function updateStatus(t,c){ const el=document.getElementById('hud-status'); el.textContent=t; el.style.color=c; }
+
+window.resetEpisode=function(){
+  isComplete=false; grabbed=false;
+  document.getElementById('success-screen').classList.remove('show');
+  redBlock.position.set(-0.28,1.08,0.12);
+  if(robot.root) robot.root.position.set(0,0,-0.45);
+  if(robot.rightArm){ robot.rightArm.ug.rotation.x=0.75; robot.rightArm.ug.rotation.z=-0.22; robot.rightArm.fg.rotation.x=0.45; }
+  targetZone.material.color.set(0xF59E0B); targetZone.material.opacity=0.65;
+  ['s1','s2','s3','s4'].forEach((id,i)=>{
+    const el=document.getElementById(id);
+    if(i===0){el.className='step-item done';el.textContent='✓ Observe scene';}
+    else if(i===1){el.className='step-item active';el.textContent='→ Grab red block';}
+    else if(i===2){el.className='step-item';el.textContent='○ Move to target';}
+    else{el.className='step-item';el.textContent='○ Release block';}
+  });
+  updateStatus('● Ready','#10B981');
+  startTimer();
+};
+
+window.enterVR=function(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('hud').classList.add('visible');
+  document.getElementById('step-hud').classList.add('visible');
+  document.getElementById('earnings-hud').classList.add('visible');
+  document.getElementById('back-btn').style.display='none';
+  const vrBtn=VRButton.createButton(renderer);
+  document.body.appendChild(vrBtn); vrBtn.click();
+  startTimer();
+};
+
+window.startFlat=function(){
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('hud').classList.add('visible');
+  document.getElementById('step-hud').classList.add('visible');
+  document.getElementById('earnings-hud').classList.add('visible');
+  startTimer();
+};
+
+buildScene();
+</script>
+</body>
+</html>
