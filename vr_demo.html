@@ -53,7 +53,7 @@ canvas { display: block; }
   <p>Control a Unitree G1 humanoid robot. Pick up the red block and place it in the yellow target zone.</p>
   <button id="vr-btn" onclick="enterVR()">🥽 Enter VR (Meta Quest 3)</button>
   <button id="flat-btn" onclick="startFlat()">▶ Play in Browser</button>
-  <div style="font-size:11px;color:#4A5568;margin-top:4px;">On Quest 3: open this URL in the browser, then tap Enter VR</div>
+  <div style="font-size:11px;color:#4A5568;margin-top:4px;">On Quest 3: Enter VR → Right thumbstick moves arm · Trigger bends elbow · A = Grab · B = Place</div>
 </div>
 <div id="hud">
   <div class="hud-row">
@@ -62,12 +62,13 @@ canvas { display: block; }
     <span class="hud-status" id="hud-status">● Ready</span>
   </div>
   <div class="hud-controls">
-    <div class="hud-ctrl"><span class="kbd">Mouse</span> Rotate camera</div>
-    <div class="hud-ctrl"><span class="kbd">W S</span> Forward / Back</div>
-    <div class="hud-ctrl"><span class="kbd">A D</span> Left / Right</div>
-    <div class="hud-ctrl"><span class="kbd">Q E</span> Elbow bend</div>
+    <div class="hud-ctrl"><span class="kbd">W S A D</span> Move arm</div>
+    <div class="hud-ctrl"><span class="kbd">Q E</span> Elbow</div>
     <div class="hud-ctrl"><span class="kbd">Space</span> Grab / Release</div>
     <div class="hud-ctrl"><span class="kbd">R</span> Reset</div>
+    <div class="hud-ctrl"><span class="kbd">VR: Thumbstick</span> Move arm</div>
+    <div class="hud-ctrl"><span class="kbd">Trigger</span> Elbow</div>
+    <div class="hud-ctrl"><span class="kbd">A</span> Grab · <span class="kbd">B</span> Place</div>
   </div>
 </div>
 <div id="step-hud">
@@ -300,8 +301,8 @@ function buildG1() {
   });
 
   // ── ARMS
-  // robot.rightArm = side -1 (screen-left) — CONTROLLED
-  // robot.leftArm  = side  1 (screen-right) — passive
+  // robot.rightArm = side 1 (screen-left) — CONTROLLED
+  // robot.leftArm  = side -1 (screen-right) — passive
   robot.rightArm = buildArm(root, 1);
   robot.leftArm  = buildArm(root, -1);
 
@@ -473,9 +474,72 @@ function addLabel(text,pos,color){
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));
   sp.position.copy(pos); sp.scale.set(0.45,0.11,1); scene.add(sp);
 }
+// ── CONTROLLER STATE
+let prevAPressed = false, prevBPressed = false;
+
+function handleControllers() {
+  const session = renderer.xr.getSession();
+  if (!session) return;
+
+  for (const source of session.inputSources) {
+    if (source.handedness !== 'right') continue;
+    if (!source.gamepad || !robot.rightArm) continue;
+
+    const gp = source.gamepad;
+    const axes = gp.axes;       // [0]=thumbstick X, [1]=thumbstick Y (some controllers)
+    const buttons = gp.buttons; // [0]=trigger, [1]=grip, [4]=A, [5]=B
+
+    // Right thumbstick → move upper arm (axes 2,3 on Quest 3)
+    const stickX = axes[2] || axes[0] || 0; // left/right
+    const stickY = axes[3] || axes[1] || 0; // up/down
+    const spd = 0.03;
+
+    const ug = robot.rightArm.ug;
+    const fg = robot.rightArm.fg;
+
+    if (Math.abs(stickY) > 0.1) ug.rotation.x += stickY * spd;
+    if (Math.abs(stickX) > 0.1) ug.rotation.z += stickX * spd;
+
+    // Trigger (buttons[0]) → bend elbow
+    const triggerVal = buttons[0] ? buttons[0].value : 0;
+    if (triggerVal > 0.1) fg.rotation.x += triggerVal * 0.04;
+    else if (fg.rotation.x > 0.45) fg.rotation.x -= 0.02;
+
+    // Grip (buttons[1]) → also bend elbow (alternative)
+    const gripVal = buttons[1] ? buttons[1].value : 0;
+    if (gripVal > 0.1) fg.rotation.x += gripVal * 0.03;
+
+    // A button (buttons[4]) → Grab
+    const aPressed = buttons[4] && buttons[4].pressed;
+    if (aPressed && !prevAPressed && !grabbed) toggleGrab();
+    prevAPressed = aPressed;
+
+    // B button (buttons[5]) → Place / Release
+    const bPressed = buttons[5] && buttons[5].pressed;
+    if (bPressed && !prevBPressed && grabbed) toggleGrab();
+    prevBPressed = bPressed;
+
+    // Also show controller position as a visual guide
+    if (source.gripSpace) {
+      const frame = renderer.xr.getFrame();
+      if (frame) {
+        const refSpace = renderer.xr.getReferenceSpace();
+        const pose = frame.getPose(source.gripSpace, refSpace);
+        if (pose) {
+          // Map controller Y movement to arm forward/back
+          // Controller moving forward in VR space = arm reaching more
+        }
+      }
+    }
+  }
+}
+
 
 function animate(){
   const delta=clock.getDelta(); animTime+=delta; controls.update();
+
+    // Handle VR controllers
+  handleControllers();
 
   // Idle sway
   if(robot.root) robot.root.position.y=Math.sin(animTime*1.2)*0.004;
