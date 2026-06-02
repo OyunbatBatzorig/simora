@@ -97,12 +97,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .detail-back:hover { color: #fff; }
 .detail-wrap { display: grid; grid-template-columns: 1fr 360px; gap: 0; min-height: 550px; }
 .detail-left { border-right: 0.5px solid #1E2A45; }
-.sim-preview { background: #080B14; height: 1120px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; border-bottom: 0.5px solid #1E2A45; position: relative; overflow: hidden; }
+.sim-preview { background: #080B14; height: 66vh; min-height: 500px; max-height: 700px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; border-bottom: 0.5px solid #1E2A45; position: relative; overflow: hidden; }
 .sim-grid { position: absolute; inset: 0; background-image: linear-gradient(#1E2A4520 1px, transparent 1px), linear-gradient(90deg, #1E2A4520 1px, transparent 1px); background-size: 32px 32px; }
 .sim-robot { font-size: 64px; position: relative; z-index: 1; }
 .sim-label { position: relative; z-index: 1; font-size: 11px; color: #94A3B8; }
 .sim-badge { position: absolute; top: 12px; left: 12px; background: #0C2A3A; border: 0.5px solid #00D4FF; border-radius: 4px; padding: 3px 8px; font-size: 10px; color: #00D4FF; z-index: 2; }
 .sim-video-note { position: absolute; bottom: 12px; right: 12px; background: rgba(0,0,0,0.7); border-radius: 4px; padding: 3px 8px; font-size: 9px; color: #94A3B8; z-index: 2; }
+.sim-preview canvas, 
+.sim-preview img,
+.sim-preview .Combined-Image-Container {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;      /* Ensures the whole simulated room stays perfectly in ratio */
+}
 .detail-info { padding: 20px; }
 .detail-info h2 { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
 .detail-info .di-sub { font-size: 11px; color: #94A3B8; margin-bottom: 16px; }
@@ -145,16 +152,71 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .submit-bar { padding: 14px 28px; border-top: 0.5px solid #1E2A45; display: flex; justify-content: flex-end; gap: 10px; }
 
 /* LEADERBOARD */
-.lb-table { background: #161A2E; border: 0.5px solid #1E2A45; border-radius: 10px; overflow: hidden; }
-.lb-head { display: grid; grid-template-columns: 40px 1fr 100px 100px 80px 80px; gap: 12px; padding: 10px 16px; font-size: 10px; color: #94A3B8; border-bottom: 0.5px solid #1E2A45; }
-.lb-row { display: grid; grid-template-columns: 40px 1fr 100px 100px 80px 80px; gap: 12px; padding: 12px 16px; border-bottom: 0.5px solid #0D111F; align-items: center; }
+.lb-table { 
+  background: #161A2E; 
+  border: 0.5px solid #1E2A45; 
+  border-radius: 10px; 
+  overflow: hidden; 
+}
+
+/* ── CHANGED: Widened the last 4 columns (Episodes, Earned, Accuracy, Badge) 
+   from 100px/80px to 120px to prevent larger text from wrapping or breaking ── */
+.lb-head { 
+  display: grid; 
+  grid-template-columns: 40px 1fr 120px 120px 120px 120px; 
+  gap: 12px; 
+  padding: 14px 16px; /* Slightly more padding for the larger text layout */
+  font-size: 11px;    /* Increased header font slightly */
+  color: #94A3B8; 
+  border-bottom: 0.5px solid #1E2A45; 
+}
+
+/* ── CHANGED: Column widths must match the .lb-head grid layout exactly ── */
+.lb-row { 
+  display: grid; 
+  grid-template-columns: 40px 1fr 120px 120px 120px 120px; 
+  gap: 12px; 
+  padding: 16px 16px; /* Added extra vertical breathing room */
+  border-bottom: 0.5px solid #0D111F; 
+  align-items: center; 
+}
+
 .lb-row:last-child { border-bottom: none; }
 .lb-row:hover { background: #0F1422; }
+
 .lb-user { display: flex; align-items: center; gap: 10px; }
-.avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; }
-.lb-name { font-size: 12px; font-weight: 500; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; }
+.lb-name { font-size: 13px; font-weight: 500; }
 .lb-country { font-size: 10px; color: #94A3B8; }
-.lb-earn { font-size: 12px; font-weight: 500; color: #10B981; }
+
+/* ── CHANGED: Increased the money font size and weight ── */
+.lb-earn { 
+  font-size: 15px;         /* Bumped up from 12px */
+  font-weight: 600;         /* Made it bolder so it pops out */
+  color: #10B981; 
+}
+.lb-badge-container {
+  display: flex;
+  align-items: center;      /* Centers the pill vertically in the row */
+  justify-content: center;   /* Centers the pill horizontally in the 120px column */
+  height: 100%;             /* Allows full utilization of row height for centering */
+}
+
+/* ── ADDED: Standard styling for the Badge container ── */
+.lb-badge {
+  font-size: 12px;         /* Increased readability */
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;       /* Bigger, cleaner pill look */
+  border-radius: 6px;
+ /* CRITICAL FOR INTERNAL TEXT CENTERING: */
+  display: inline-flex;
+  align-items: center;      /* Centers text vertically inside the colorful pill */
+  justify-content: center;  /* Centers text horizontally inside the colorful pill */
+  line-height: 1;           /* Prevents standard text line-height from forcing it down */
+  text-align: center;
+}
 
 /* CONTACT */
 .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 28px; }
