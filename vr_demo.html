@@ -49,15 +49,15 @@ canvas { display: block; }
 <div id="overlay">
   <div style="font-size:13px;color:#94A3B8;letter-spacing:3px;text-transform:uppercase;">Simora · VR Demo</div>
   <h1>SIMORA</h1>
-  <div class="task-badge">Isaac-PickPlace-RedBlock-G129-Dex1</div>
-  <p>Control a Unitree G1 humanoid robot. Pick up the red block and place it in the yellow target zone.</p>
+  <div class="task-badge">IDEA CHALLENGE 2026</div>
+  <p>Control a Unitree O1 humanoid robot. Pick up the red block and place it in the target zone.</p>
   <button id="vr-btn" onclick="enterVR()">🥽 Enter VR (Meta Quest 3)</button>
   <button id="flat-btn" onclick="startFlat()">▶ Play in Browser</button>
-  <div style="font-size:11px;color:#4A5568;margin-top:4px;">On Quest 3: Enter VR → Right thumbstick moves arm · Trigger bends elbow · A = Grab · B = Place</div>
+  <div style="font-size:11px;color:#4A5568;margin-top:4px;">Right stick = move arm · Trigger = elbow · A = Grab · B = Place · Right stick click = Teleport · Left stick click = 1st/3rd person</div>
 </div>
 <div id="hud">
   <div class="hud-row">
-    <span class="hud-task">Isaac-PickPlace-RedBlock-G129-Dex1 · Unitree G1</span>
+    <span class="hud-task">IDEA CHALLENGE 2026 · Unitree O1 · Pick and Place</span>
     <span class="hud-timer" id="hud-timer">00:00</span>
     <span class="hud-status" id="hud-status">● Ready</span>
   </div>
@@ -304,7 +304,7 @@ function buildG1() {
   // robot.rightArm = side 1 (screen-left) — CONTROLLED
   // robot.leftArm  = side -1 (screen-right) — passive
   robot.rightArm = buildArm(root, 1);
-  robot.leftArm  = buildArm(root, -1);
+  robot.leftArm  = buildArm(root,  -1);
 
   // ── LEGS
   [-1,1].forEach(side => {
@@ -332,6 +332,180 @@ function buildG1() {
     foot.position.set(side*0.10, 0.13, 0.03);
     root.add(foot);
   });
+}
+
+// ── ROCKET MODEL
+// ── REVISED ROCKET MODEL FOR THREE.JS (WebVR Ready)
+function buildRocketModel() {
+  const rg = new THREE.Group();
+  rg.position.set(0, 3.8, -5.0);
+  rg.rotation.y = 0;
+  scene.add(rg);
+
+  // ── 1. MATERIALS (Upgraded to MeshStandardMaterial for metallic/glass depth)
+  const metalMat = new THREE.MeshStandardMaterial({ 
+    color: 0x7a7c82, 
+    metalness: 0.7, 
+    roughness: 0.35,
+    bumpScale: 0.05
+  });
+  
+  const darkMetal = new THREE.MeshStandardMaterial({ 
+    color: 0x33353b, 
+    metalness: 0.8, 
+    roughness: 0.4 
+  });
+  
+  const goldMat = new THREE.MeshStandardMaterial({ 
+    color: 0xd49b43, 
+    metalness: 0.9, 
+    roughness: 0.2 
+  });
+  
+  const windowMat = new THREE.MeshStandardMaterial({ 
+    color: 0xe6a15c, 
+    roughness: 0.1, 
+    metalness: 0.1,
+    emissive: 0x442200 
+  });
+
+  // Translucent glowing materials for the modern stylized plume/smoke
+  const flameMat = new THREE.MeshPhysicalMaterial({ 
+    color: 0xee7226, 
+    emissive: 0x551100,
+    transparent: true, 
+    opacity: 0.85,
+    roughness: 0.2,
+    transmission: 0.4, // Gives it that polished glass/resin look from the render
+    thickness: 0.5 
+  });
+
+  const flameMat2 = new THREE.MeshPhysicalMaterial({ 
+    color: 0xf3b363, 
+    emissive: 0x442200,
+    transparent: true, 
+    opacity: 0.75,
+    roughness: 0.2,
+    transmission: 0.3
+  });
+
+  // ── 2. OUTER FRAME (Thicker profile matching the render)
+  const ringGeo = new THREE.TorusGeometry(1.35, 0.14, 24, 100);
+  const outerRing = new THREE.Mesh(ringGeo, darkMetal);
+  // Remove rotation.y and rotate on Z instead if you want to rotate the notch position
+  outerRing.rotation.z = 0; 
+  rg.add(outerRing);
+
+  // Beveled interior trim ring
+  const innerRing = new THREE.Mesh(new THREE.TorusGeometry(1.22, 0.03, 16, 100), metalMat);
+  innerRing.rotation.z = 0;
+  rg.add(innerRing);
+
+  // Framing bracket detail at the top (Adjusted position to match flat orientation)
+  const topBracket = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 0.16), darkMetal);
+  topBracket.position.set(0, 1.35, 0); 
+  rg.add(topBracket);
+
+  // ── 3. MAIN ROCKET GROUP (Tilted out toward the viewer)
+  const rocket = new THREE.Group();
+  rocket.rotation.z = -0.55; // Core trajectory tilt
+  rocket.rotation.x = 0.25;  // Subtle Z-depth lean so it doesn't look totally flat
+  rocket.position.set(0.1, 0.1, 0.1);
+  rg.add(rocket);
+
+  // Curved upper/lower main body hull chunks
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.75, 24), metalMat);
+  body.position.set(0, 0, 0);
+  rocket.add(body);
+
+  // Rounded aerodynamic nose cone
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.55, 24), metalMat);
+  nose.position.set(0, 0.60, 0);
+  rocket.add(nose);
+
+  // Porthole base assembly (Extruded further outward along Z-axis)
+  const portRing = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.03, 12, 32), goldMat);
+  portRing.position.set(0, 0.15, 0.24); 
+  rocket.add(portRing);
+
+  const portGlass = new THREE.Mesh(new THREE.SphereGeometry(0.09, 32, 16, 0, Math.PI*2, 0, Math.PI/2), windowMat);
+  portGlass.rotation.x = Math.PI / 2;
+  portGlass.position.set(0, 0.15, 0.24);
+  rocket.add(portGlass);
+
+  // Paneled rivet bands
+  [-0.22, 0.15].forEach(y => {
+    const seam = new THREE.Mesh(new THREE.TorusGeometry(0.265, 0.012, 8, 40), darkMetal);
+    seam.rotation.x = Math.PI / 2;
+    seam.position.set(0, y, 0);
+    rocket.add(seam);
+  });
+
+  // ── 4. TRUE 3D FINS (Extruded and spaced symmetrically in 3D)
+  const finShape = new THREE.Shape();
+  finShape.moveTo(0, 0);
+  finShape.lineTo(0.32, -0.22);
+  finShape.lineTo(0.24, -0.50);
+  finShape.lineTo(0, -0.32);
+  finShape.closePath();
+
+  const extrudeSettings = { depth: 0.04, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.01, bevelThickness: 0.01 };
+  const finGeo = new THREE.ExtrudeGeometry(finShape, extrudeSettings);
+  finGeo.center(); // Keeps the rotation pivot point uniform at the core center
+
+  // Left Fin (Angled out slightly to the left side)
+  const finL = new THREE.Mesh(finGeo, darkMetal);
+  finL.position.set(-0.25, -0.25, 0.05);
+  finL.rotation.y = -Math.PI / 4; 
+  rocket.add(finL);
+
+  // Right Fin (Rotated exactly 90 degrees outward from the left fin alignment)
+  const finR = new THREE.Mesh(finGeo, darkMetal);
+  finR.position.set(0.25, -0.25, 0.05);
+  finR.rotation.y = Math.PI / 4;   // Mirror angle balance
+  rocket.add(finR);
+  
+  // Rear Fin (Perpendicular stabilizer pointing backward along the Z-axis)
+  const finBack = new THREE.Mesh(finGeo, darkMetal);
+  finBack.position.set(0, -0.25, -0.24);
+  finBack.rotation.y = Math.PI / 2; // Flat 90-degree twist relative to the front plane
+  rocket.add(finBack);
+
+  // ── 5. PROPULSION ENGINE & FLUID PLUME
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.22, 12), darkMetal);
+  nozzle.position.set(0, -0.46, 0);
+  rocket.add(nozzle);
+
+  const flameGroup = new THREE.Group();
+  flameGroup.name = "rocketFlames"; 
+  flameGroup.position.set(0, -0.55, 0);
+  rocket.add(flameGroup);
+
+  // 1. Core Blast Cone (Lowered segments from 16 to 10 for performance)
+  const mainExhaust = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.75, 10), flameMat);
+  mainExhaust.position.set(0, -0.32, 0);
+  mainExhaust.rotation.z = Math.PI;
+  flameGroup.add(mainExhaust);
+
+  // ── 6. MINIMAL VOLUME PUFFS (Only 2 lightweight spheres instead of an array)
+  // Lowered sphere segments from 16x16 to 10x10. This massively cuts down polycount in VR.
+  
+  // Left Base Puff
+  const puffLeft = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 10), flameMat);
+  puffLeft.position.set(-0.18, -0.65, 0.05);
+  flameGroup.add(puffLeft);
+
+  // Right Base Puff
+  const puffRight = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 10), flameMat2);
+  puffRight.position.set(0.18, -0.70, -0.05);
+  flameGroup.add(puffRight);
+
+  // Single Point Light (Kept simple for performance)
+  const engineLight = new THREE.PointLight(0xff7722, 2.5, 4);
+  engineLight.position.set(0, -0.6, 0.2);
+  rocket.add(engineLight);
+
+  return rg;
 }
 
 // ── BUILD SCENE
@@ -379,31 +553,6 @@ function buildScene() {
     leg.position.set(x,y,z); leg.castShadow=true; scene.add(leg);
   });
 
-  // Back wall
-  const wallMat = new THREE.MeshLambertMaterial({ color: 0x1a1f2e });
-  const wall = new THREE.Mesh(new THREE.PlaneGeometry(16, 6), wallMat);
-  wall.position.set(0, 3, -5);
-  scene.add(wall);
-
-  // SIMORA text on wall
-  const wallCanvas = document.createElement('canvas');
-  wallCanvas.width = 1024; wallCanvas.height = 256;
-  const wCtx = wallCanvas.getContext('2d');
-  wCtx.fillStyle = '#0D0F1A';
-  wCtx.fillRect(0, 0, 1024, 256);
-  wCtx.fillStyle = '#00D4FF';
-  wCtx.font = 'bold 180px Arial';
-  wCtx.textAlign = 'center';
-  wCtx.textBaseline = 'middle';
-  wCtx.fillText('SIMORA', 512, 128);
-  const wallTex = new THREE.CanvasTexture(wallCanvas);
-  const wallSign = new THREE.Mesh(
-    new THREE.PlaneGeometry(5, 1.2),
-    new THREE.MeshBasicMaterial({ map: wallTex, transparent: true })
-  );
-  wallSign.position.set(0, 3.2, -4.95);
-  scene.add(wallSign);
-  
   // Robot
   buildG1();
 
@@ -429,6 +578,15 @@ function buildScene() {
   // Shelves
   buildShelf(-3.5,-3.2);
   buildShelf( 3.5,-3.2);
+
+  // Back wall
+  const wallMat2 = new THREE.MeshLambertMaterial({ color: 0x161A2E });
+  const wall2 = new THREE.Mesh(new THREE.PlaneGeometry(18, 7), wallMat2);
+  wall2.position.set(0, 3.5, -5.2);
+  scene.add(wall2);
+
+  // 3D Rocket on wall
+  buildRocketModel();
 
   // Controls
   controls = new OrbitControls(camera,renderer.domElement);
@@ -474,62 +632,101 @@ function addLabel(text,pos,color){
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));
   sp.position.copy(pos); sp.scale.set(0.45,0.11,1); scene.add(sp);
 }
+
 // ── CONTROLLER STATE
 let prevAPressed = false, prevBPressed = false;
+let prevRStickPress = false, prevLStickPress = false;
+let isFirstPerson = false;
+
+function teleportToRobot() {
+  // Snap VR camera to right in front of table
+  const xrCam = renderer.xr.getCamera();
+  if (xrCam) {
+    xrCam.parent.position.set(0, 0, 2.8); // in front of table facing robot
+  }
+  updateStatus('● Teleported to table', '#00D4FF');
+  setTimeout(()=>updateStatus(isFirstPerson ? '● 1st Person' : '● Ready','#10B981'), 1500);
+}
+
+function enterFirstPerson() {
+  isFirstPerson = true;
+  if (robot.headG) robot.headG.visible = false;
+  // Move camera rig to robot head position (robot is at z=-0.45, rotated 180, head at y=1.66)
+  const xrCam = renderer.xr.getCamera();
+  if (xrCam && xrCam.parent) {
+    xrCam.parent.position.set(0, 0, -0.1); // places eyes near robot head
+  }
+  updateStatus('● 1st Person — You are the robot', '#A78BFA');
+}
+
+function exitFirstPerson() {
+  isFirstPerson = false;
+  if (robot.headG) robot.headG.visible = true;
+  const xrCam = renderer.xr.getCamera();
+  if (xrCam && xrCam.parent) {
+    xrCam.parent.position.set(0, 0, 2.8);
+  }
+  updateStatus('● 3rd Person', '#10B981');
+}
 
 function handleControllers() {
   const session = renderer.xr.getSession();
   if (!session) return;
 
   for (const source of session.inputSources) {
-    if (source.handedness !== 'right') continue;
-    if (!source.gamepad || !robot.rightArm) continue;
-
+    if (!source.gamepad) continue;
     const gp = source.gamepad;
-    const axes = gp.axes;       // [0]=thumbstick X, [1]=thumbstick Y (some controllers)
-    const buttons = gp.buttons; // [0]=trigger, [1]=grip, [4]=A, [5]=B
+    const axes = gp.axes;
+    const buttons = gp.buttons;
 
-    // Right thumbstick → move upper arm (axes 2,3 on Quest 3)
-    const stickX = axes[2] || axes[0] || 0; // left/right
-    const stickY = axes[3] || axes[1] || 0; // up/down
-    const spd = 0.03;
+    if (source.handedness === 'right' && robot.rightArm) {
+      // Quest 3 right stick: axes[2]=X, axes[3]=Y
+      const stickX = (axes.length > 2 ? axes[2] : axes[0]) || 0;
+      const stickY = (axes.length > 3 ? axes[3] : axes[1]) || 0;
+      const spd = 0.03;
+      const ug = robot.rightArm.ug;
+      const fg = robot.rightArm.fg;
 
-    const ug = robot.rightArm.ug;
-    const fg = robot.rightArm.fg;
+      if (Math.abs(stickY) > 0.12) ug.rotation.x += stickY * spd;
+      if (Math.abs(stickX) > 0.12) ug.rotation.z += stickX * spd;
 
-    if (Math.abs(stickY) > 0.1) ug.rotation.x += stickY * spd;
-    if (Math.abs(stickX) > 0.1) ug.rotation.z += stickX * spd;
+      // Trigger → bend elbow
+      const trigVal = buttons[0] ? buttons[0].value : 0;
+      if (trigVal > 0.1) fg.rotation.x += trigVal * 0.04;
+      else if (fg.rotation.x > 0.45) fg.rotation.x -= 0.015;
 
-    // Trigger (buttons[0]) → bend elbow
-    const triggerVal = buttons[0] ? buttons[0].value : 0;
-    if (triggerVal > 0.1) fg.rotation.x += triggerVal * 0.04;
-    else if (fg.rotation.x > 0.45) fg.rotation.x -= 0.02;
+      // Grip → also bend elbow
+      const gripVal = buttons[1] ? buttons[1].value : 0;
+      if (gripVal > 0.1) fg.rotation.x += gripVal * 0.03;
 
-    // Grip (buttons[1]) → also bend elbow (alternative)
-    const gripVal = buttons[1] ? buttons[1].value : 0;
-    if (gripVal > 0.1) fg.rotation.x += gripVal * 0.03;
+      // A button (buttons[4]) → Grab
+      const aPressed = buttons[4] && buttons[4].pressed;
+      if (aPressed && !prevAPressed) toggleGrab();
+      prevAPressed = aPressed || false;
 
-    // A button (buttons[4]) → Grab
-    const aPressed = buttons[4] && buttons[4].pressed;
-    if (aPressed && !prevAPressed && !grabbed) toggleGrab();
-    prevAPressed = aPressed;
+      // B button (buttons[5]) → Release
+      const bPressed = buttons[5] && buttons[5].pressed;
+      if (bPressed && !prevBPressed && grabbed) toggleGrab();
+      prevBPressed = bPressed || false;
 
-    // B button (buttons[5]) → Place / Release
-    const bPressed = buttons[5] && buttons[5].pressed;
-    if (bPressed && !prevBPressed && grabbed) toggleGrab();
-    prevBPressed = bPressed;
+      // Right stick CLICK (buttons[3]) → Teleport
+      const rClick = buttons[3] && buttons[3].pressed;
+      if (rClick && !prevRStickPress) teleportToRobot();
+      prevRStickPress = rClick || false;
+    }
 
-    // Also show controller position as a visual guide
-    if (source.gripSpace) {
-      const frame = renderer.xr.getFrame();
-      if (frame) {
-        const refSpace = renderer.xr.getReferenceSpace();
-        const pose = frame.getPose(source.gripSpace, refSpace);
-        if (pose) {
-          // Map controller Y movement to arm forward/back
-          // Controller moving forward in VR space = arm reaching more
-        }
+    if (source.handedness === 'left') {
+      // Left stick CLICK (buttons[3]) → toggle 1st/3rd person
+      const lClick = buttons[3] && buttons[3].pressed;
+      if (lClick && !prevLStickPress) {
+        if (isFirstPerson) exitFirstPerson();
+        else enterFirstPerson();
       }
+      prevLStickPress = lClick || false;
+
+      // X button (buttons[4]) → Teleport
+      const xBtn = buttons[4] && buttons[4].pressed;
+      if (xBtn) teleportToRobot();
     }
   }
 }
@@ -538,8 +735,26 @@ function handleControllers() {
 function animate(){
   const delta=clock.getDelta(); animTime+=delta; controls.update();
 
-    // Handle VR controllers
+  // Handle VR controllers
   handleControllers();
+
+  //requestAnimationFrame(animate);
+
+  // 1. Locate the flame group inside the scene
+  const flames = scene.getObjectByName("rocketFlames");
+  
+  if (flames) {
+    // 2. Use the system clock or performance time to create a smooth wave
+    const time = performance.now() * 0.04 ; // Adjust multiplier to speed up/slow down pulse
+    
+    // Math.sin fluctuates between -1 and 1. 
+    // This formula maps it so the scale smoothly pulses between 0.85 (smaller) and 1.15 (bigger)
+    const pulseScaleY = 1.0 + Math.sin(time) * 0.15;
+    const pulseScaleXZ = 1.0 + Math.cos(time * 1.5) * 0.08; // Subtle variance on width
+    
+    flames.scale.set(pulseScaleXZ, pulseScaleY, pulseScaleXZ);
+  }
+  
 
   // Idle sway
   if(robot.root) robot.root.position.y=Math.sin(animTime*1.2)*0.004;
@@ -548,13 +763,12 @@ function animate(){
   if(!isComplete && robot.rightArm){
     const spd=1.4*delta;
     const ug=robot.rightArm.ug, fg=robot.rightArm.fg;
-    // W = reach more forward (more table), S = pull back
     if(keys['KeyW']||keys['ArrowUp'])   { ug.rotation.x+=spd*1.5; }
     if(keys['KeyS']||keys['ArrowDown']) { ug.rotation.x-=spd*1.5; }
     if(keys['KeyA']||keys['ArrowLeft']) { ug.rotation.z-=spd*1.5; }
     if(keys['KeyD']||keys['ArrowRight']){ ug.rotation.z+=spd*1.5; }
-    if(keys['KeyQ']){ fg.rotation.x-=spd*0.4; }
-    if(keys['KeyE']){ fg.rotation.x+=spd*0.4; }
+    if(keys['KeyQ']){ fg.rotation.x-=spd*1.5; }
+    if(keys['KeyE']){ fg.rotation.x+=spd*1.5; }
 
     // Block follows hand when grabbed
     if(grabbed){
@@ -570,6 +784,18 @@ function animate(){
   // Target pulse
   const p=0.96+Math.sin(animTime*3)*0.04;
   targetZone.scale.set(p,1,p);
+
+  // Rocket animation
+  if (robot.rocketGroup) {
+    robot.rocketGroup.rotation.y = Math.sin(animTime*0.3)*0.04;
+  }
+  if (robot.flameGroup) {
+    robot.flameGroup.scale.y = 0.9 + Math.sin(animTime*8)*0.12;
+    robot.flameGroup.scale.x = 0.95 + Math.sin(animTime*6)*0.06;
+  }
+  if (robot.flameLight) {
+    robot.flameLight.intensity = 1.0 + Math.sin(animTime*7)*0.4;
+  }
   renderer.render(scene,camera);
 }
 
