@@ -627,6 +627,15 @@ function go(id){
   window.scrollTo(0,0);
 }
 
+// Handle URL hash on load
+window.addEventListener('load', () => {
+  if(window.location.hash === '#marketplace') go('marketplace');
+  if(window.location.hash === '#task-pp-red-dex1') {
+    go('marketplace');
+    setTimeout(() => openDetail('pp-red-dex1'), 150);
+  }
+});
+
 function openDetail(id){
   const t=TASKS[id]; if(!t) return;
   document.getElementById('d-title').textContent=t.title;
