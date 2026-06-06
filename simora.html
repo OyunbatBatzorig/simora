@@ -629,10 +629,15 @@ function go(id){
 
 // Handle URL hash on load
 window.addEventListener('load', () => {
-  if(window.location.hash === '#marketplace') go('marketplace');
-  if(window.location.hash === '#task-pp-red-dex1') {
-    go('marketplace');
-    setTimeout(() => openDetail('pp-red-dex1'), 150);
+  const hash = window.location.hash;
+  if(hash === '#marketplace') {
+    setTimeout(() => go('marketplace'), 100);
+  }
+  if(hash === '#task-pp-red-dex1') {
+    setTimeout(() => {
+      go('marketplace');
+      setTimeout(() => openDetail('pp-red-dex1'), 200);
+    }, 100);
   }
 });
 
