@@ -272,6 +272,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 @media (max-width: 768px) {
   .nav-links { display: none !important; }
   .btn-outline { display: none; }
+  .hero-3d { display: none; }
   #hamburger { display: block !important; }
 }
 
@@ -889,6 +890,10 @@ else {
   });
 }
 
+
+
+</script>
+<script>
 function toggleMobileNav() {
   document.getElementById('mobile-nav').classList.toggle('open');
 }
@@ -906,8 +911,6 @@ function checkViewport() {
 window.addEventListener('resize', checkViewport);
 document.addEventListener('DOMContentLoaded', checkViewport);
 setTimeout(checkViewport, 50);
-
 </script>
-
 </body>
 </html>
