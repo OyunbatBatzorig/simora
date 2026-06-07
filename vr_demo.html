@@ -347,26 +347,6 @@ function buildRocketModel() {
   rg.position.set(0.0, 3.2, -3.8); 
   
   // Tilts the entire coordinate frame so it hangs naturally in open space
-  
-  // —— ADD ANIMATED BUBBLE INSIDE THE ROCKET
-  const bubbleMat = new THREE.MeshPhongMaterial({
-    color: 0x38bdf8,
-    transparent: true,
-    opacity: 0.65,
-    shininess: 120,
-    blending: THREE.AdditiveBlending // Makes it glow beautifully over the flames
-  });
-  
-  // Creates a clean, smooth sphere mesh
-  const bubbleMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), bubbleMat);
-  
-  // Centers it perfectly along the body axis, slightly elevated from the engine rim
-  bubbleMesh.position.set(0, 0.4, 0);
-  rg.add(bubbleMesh);
-  
-  // Attach it to the group reference so the animation loop can access it
-  rg.userData = { bubble: bubbleMesh };
-
   rg.rotation.y = 0;
   scene.add(rg);
 
