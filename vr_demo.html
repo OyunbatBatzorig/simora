@@ -6,7 +6,12 @@
 <title>Simora — VR Demo</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #0D0F1A; color: #fff; font-family: -apple-system, sans-serif; overflow: hidden; }
+body { 
+  background: #0D0F1A; /* Reset from light gray back to the old dark blue/black */
+  color: #fff; 
+  font-family: -apple-system, sans-serif; 
+  overflow: hidden; 
+}
 #overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: linear-gradient(135deg, #0D0F1A 0%, #161A2E 100%); z-index: 100; }
 #overlay h1 { font-size: 42px; font-weight: 500; color: #00D4FF; letter-spacing: 4px; }
 #overlay p { font-size: 16px; color: #94A3B8; text-align: center; max-width: 420px; line-height: 1.7; }
@@ -338,7 +343,30 @@ function buildG1() {
 // ── REVISED ROCKET MODEL FOR THREE.JS (WebVR Ready)
 function buildRocketModel() {
   const rg = new THREE.Group();
-  rg.position.set(0, 3.8, -5.0);
+  // Brings it forward (from -5.0 to -3.8) and shifts it slightly to the right (1.2)
+  rg.position.set(0.0, 3.2, -3.8); 
+  
+  // Tilts the entire coordinate frame so it hangs naturally in open space
+  
+  // —— ADD ANIMATED BUBBLE INSIDE THE ROCKET
+  const bubbleMat = new THREE.MeshPhongMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.65,
+    shininess: 120,
+    blending: THREE.AdditiveBlending // Makes it glow beautifully over the flames
+  });
+  
+  // Creates a clean, smooth sphere mesh
+  const bubbleMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), bubbleMat);
+  
+  // Centers it perfectly along the body axis, slightly elevated from the engine rim
+  bubbleMesh.position.set(0, 0.4, 0);
+  rg.add(bubbleMesh);
+  
+  // Attach it to the group reference so the animation loop can access it
+  rg.userData = { bubble: bubbleMesh };
+
   rg.rotation.y = 0;
   scene.add(rg);
 
@@ -511,8 +539,10 @@ function buildRocketModel() {
 // ── BUILD SCENE
 function buildScene() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x141828);
-  scene.fog = new THREE.Fog(0x141828, 10, 22);
+  
+  // Warehouse environment background & fog scattering
+  scene.background = new THREE.Color(0x0a0c14);
+  scene.fog = new THREE.Fog(0x0a0c14, 8, 25);
 
   camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
   camera.position.set(0, 2.0, 3.8);
@@ -525,32 +555,80 @@ function buildScene() {
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // Lights
-  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.3);
-  sun.position.set(4,7,5); sun.castShadow=true;
-  sun.shadow.mapSize.set(2048,2048);
-  sun.shadow.camera.left=-5; sun.shadow.camera.right=5;
-  sun.shadow.camera.top=5; sun.shadow.camera.bottom=-5;
-  scene.add(sun);
-  const fill = new THREE.DirectionalLight(0x6688cc, 0.35);
-  fill.position.set(-4,3,-3); scene.add(fill);
+  // —— DAYTIME LIGHTING SETUP (Clean Showroom Style)
+  // 1. High Global Sky Light (Simulates bright sky scattering)
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0xe0e5ec, 1.1);
+  hemiLight.position.set(0, 20, 0);
+  scene.add(hemiLight);
 
-  // Floor + grid
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(16,16), new THREE.MeshLambertMaterial({color:0x1a1f2e}));
-  floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
-  scene.add(new THREE.GridHelper(16,32,0x252D42,0x1E2840));
+  // 2. Strong Crisp Directional Daylight (The Main Sun)
+  const sunLight = new THREE.DirectionalLight(0xffffff, 1.4);
+  sunLight.position.set(5, 8, 4); // High angled sun casting natural shadows
+  sunLight.castShadow = true;
+  
+  // Optimize shadow maps for crisp, clean daylight edges
+  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.camera.left = -6;
+  sunLight.shadow.camera.right = 6;
+  sunLight.shadow.camera.top = 6;
+  sunLight.shadow.camera.bottom = -6;
+  sunLight.shadow.camera.near = 0.5;
+  sunLight.shadow.camera.far = 25;
+  sunLight.shadow.bias = -0.0002;
+  scene.add(sunLight);
 
-  // Table
-  const tMat = new THREE.MeshPhongMaterial({color:0xD8D0C0,shininess:40});
-  const lMat = new THREE.MeshPhongMaterial({color:0x808080,shininess:60});
-  const top = new THREE.Mesh(new THREE.BoxGeometry(1.7,0.05,0.85),tMat);
-  top.position.set(0,1.0,0.25); top.castShadow=top.receiveShadow=true; scene.add(top);
-  const tray = new THREE.Mesh(new THREE.BoxGeometry(0.38,0.02,0.28),new THREE.MeshPhongMaterial({color:0xAAAAAA,shininess:80}));
-  tray.position.set(0.28,1.035,0.14); scene.add(tray);
-  [[-0.78,0.5,0.65],[-0.78,0.5,-0.15],[0.78,0.5,0.65],[0.78,0.5,-0.15]].forEach(([x,y,z])=>{
-    const leg=new THREE.Mesh(new THREE.BoxGeometry(0.06,1.0,0.06),lMat);
-    leg.position.set(x,y,z); leg.castShadow=true; scene.add(leg);
+  // 3. Soft Softening Bounce Light (Fills in dark geometric creases)
+  const bounceLight = new THREE.DirectionalLight(0xffffff, 0.4);
+  bounceLight.position.set(-5, 3, -4);
+  scene.add(bounceLight);
+
+  // —— WALL FILL LIGHT (Fixes pitch-black warehouse boundaries)
+  const wallGlow = new THREE.DirectionalLight(0xffffff, 0.65);
+  // Positioned deep in front of the table, pointing straight back at the wall face
+  wallGlow.position.set(0, 4, 8); 
+  scene.add(wallGlow);
+
+  // —— ENVIRONMENT ADJUSTMENTS
+  // Floor (Switch from dark dark metal to bright studio floor)
+  const floorGeo = new THREE.PlaneGeometry(30, 30);
+  const floorMat = new THREE.MeshStandardMaterial({ 
+    color: 0xEAEFF8, // Clean showroom floor color
+    roughness: 0.4, 
+    metalness: 0.1 
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI/2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Subtle daylight grid lines for orientation
+  const grid = new THREE.GridHelper(20, 40, 0xCBD5E1, 0xE2E8F0);
+  grid.position.y = 0.001;
+  scene.add(grid);
+
+  // Table (Update from dark metallic to clean white/gray workstation matte)
+  const tableGeo = new THREE.BoxGeometry(1.7, 0.05, 0.85);
+  const tableMat = new THREE.MeshStandardMaterial({ 
+    color: 0xFFFFFF, 
+    roughness: 0.2 
+  });
+  const table = new THREE.Mesh(tableGeo, tableMat);
+  table.position.set(0, 1.0, 0.25);
+  table.castShadow = true;
+  table.receiveShadow = true;
+  scene.add(table);
+
+  const tray = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.02, 0.28), new THREE.MeshStandardMaterial({ color: 0xDDDDDD, roughness: 0.4 }));
+  tray.position.set(0.28, 1.035, 0.14); 
+  scene.add(tray);
+
+  // Table Legs (Clean aluminum/brushed silver)
+  const legMat = new THREE.MeshStandardMaterial({ color: 0xD1D5DB, roughness: 0.3 });
+  [[-0.78, 0.5, 0.65], [-0.78, 0.5, -0.15], [0.78, 0.5, 0.65], [0.78, 0.5, -0.15]].forEach(([x, y, z]) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.0, 0.06), legMat);
+    leg.position.set(x, y, z); 
+    leg.castShadow = true; 
+    scene.add(leg);
   });
 
   // Robot
@@ -580,13 +658,124 @@ function buildScene() {
   buildShelf( 3.5,-3.2);
 
   // Back wall
-  const wallMat2 = new THREE.MeshLambertMaterial({ color: 0x161A2E });
-  const wall2 = new THREE.Mesh(new THREE.PlaneGeometry(18, 7), wallMat2);
-  wall2.position.set(0, 3.5, -5.2);
-  scene.add(wall2);
+  // const wallMat2 = new THREE.MeshLambertMaterial({ color: 0x161A2E });
+  // const wall2 = new THREE.Mesh(new THREE.PlaneGeometry(18, 7), wallMat2);
+  // wall2.position.set(0, 3.5, -5.2);
+  // scene.add(wall2);
 
   // 3D Rocket on wall
   buildRocketModel();
+
+  // —— WAREHOUSE ROOM STRUCTURE (Encloses the area into an industrial facility)
+  const wallMat = new THREE.MeshStandardMaterial({ 
+    color: 0x1c2333,   // Sleek base metal blue-gray
+    roughness: 0.5, 
+    metalness: 0.2 
+  });
+  const pillarMat = new THREE.MeshStandardMaterial({ 
+    color: 0x121622,   // Darker tone for structural structural contrast
+    roughness: 0.4, 
+    metalness: 0.4 
+  });
+  const metalTrimMat = new THREE.MeshStandardMaterial({ 
+    color: 0x2d3748, 
+    roughness: 0.3, 
+    metalness: 0.7 
+  });
+
+  const roomGroup = new THREE.Group();
+  scene.add(roomGroup);
+
+  // 1. Back Wall
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), wallMat);
+  backWall.position.set(0, 5, -6);
+  backWall.receiveShadow = true;
+  roomGroup.add(backWall);
+
+  // 2. Left & Right Side Walls
+  const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(20, 10), wallMat);
+  leftWall.position.set(-10, 5, 4);
+  leftWall.rotation.y = Math.PI / 2;
+  leftWall.receiveShadow = true;
+  roomGroup.add(leftWall);
+
+  const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(20, 10), wallMat);
+  rightWall.position.set(10, 5, 4);
+  rightWall.rotation.y = -Math.PI / 2;
+  rightWall.receiveShadow = true;
+  roomGroup.add(rightWall);
+
+  // 3. Structural Industrial Pillars (Adds depth along the back wall)
+  [-7.5, -3.5, 3.5, 7.5].forEach(x => {
+    const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 10, 0.5), pillarMat);
+    pillar.position.set(x, 5, -5.8);
+    pillar.castShadow = true;
+    pillar.receiveShadow = true;
+    roomGroup.add(pillar);
+
+    // Cross beams connecting pillars near the ceiling
+    const crossBeam = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.15, 0.3), metalTrimMat);
+    crossBeam.position.set(x + 2, 9.2, -5.7);
+    roomGroup.add(crossBeam);
+  });
+
+  // 4. —— INTEGRATED WALL LIGHTING STRIPS (Now lighting Back, Left, and Right walls)
+  const stripColor = 0x38bdf8; // Bright modern cyber-blue
+  const wallLightMat = new THREE.MeshBasicMaterial({ color: stripColor });
+  
+  // Two clean horizontal rows of glowing tube arrays running across all wall segments
+  [3.2, 6.5].forEach(yHeight => {
+    
+    // A. BACK WALL STRIPS & LIGHTS
+    const backStrip = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 20, 8), wallLightMat);
+    backStrip.rotation.z = Math.PI / 2; // Horizontal orientation
+    backStrip.position.set(0, yHeight, -5.75);
+    roomGroup.add(backStrip);
+
+    const backGlow = new THREE.PointLight(stripColor, 0.6, 8);
+    backGlow.position.set(0, yHeight, -5.5);
+    roomGroup.add(backGlow);
+
+    // B. LEFT WALL STRIPS & LIGHTS (Flushed along x = -9.75)
+    const leftStrip = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 20, 8), wallLightMat);
+    leftStrip.rotation.x = Math.PI / 2; // Runs forward along the Z axis
+    leftStrip.position.set(-9.75, yHeight, 4);
+    roomGroup.add(leftStrip);
+
+    const leftGlow = new THREE.PointLight(stripColor, 0.6, 8);
+    leftGlow.position.set(-9.5, yHeight, 4);
+    roomGroup.add(leftGlow);
+
+    // C. RIGHT WALL STRIPS & LIGHTS (Flushed along x = 9.75)
+    const rightStrip = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 20, 8), wallLightMat);
+    rightStrip.rotation.x = Math.PI / 2; // Runs forward along the Z axis
+    rightStrip.position.set(9.75, yHeight, 4);
+    roomGroup.add(rightStrip);
+
+    const rightGlow = new THREE.PointLight(stripColor, 0.6, 8);
+    rightGlow.position.set(9.5, yHeight, 4);
+    roomGroup.add(rightGlow);
+  });
+
+  // 5. Industrial Ceiling Beams (Cast structural shadows across the floor)
+  for (let z = -4; z <= 12; z += 4) {
+    const roofBeam = new THREE.Mesh(new THREE.BoxGeometry(20, 0.25, 0.15), metalTrimMat);
+    roofBeam.position.set(0, 9.8, z);
+    roofBeam.castShadow = true;
+    roomGroup.add(roofBeam);
+  }
+
+  // 6. High-Bay Warehouse Indicator Lights (Soft background glowing dots on the ceiling)
+  for (let bx = -6; bx <= 6; bx += 4) {
+    for (let bz = -2; bz <= 8; bz += 5) {
+      const highBay = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.12, 0.05, 12),
+        new THREE.MeshBasicMaterial({ color: 0x3b82f6 })
+      );
+      highBay.position.set(bx, 9.7, bz);
+      roomGroup.add(highBay);
+    }
+  }
 
   // Controls
   controls = new OrbitControls(camera,renderer.domElement);
