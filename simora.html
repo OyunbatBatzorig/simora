@@ -264,6 +264,26 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 @media (max-width: 768px) {
   .hero-3d { width: 200px; height: 200px; }
   #g1-canvas { width: 200px; height: 200px; }
+
+   / Fix half-screen issue /
+  .sim { width: 100%; overflow-x: hidden; }
+  .page { width: 100%; }
+  
+  / Contact page /
+  .contact-grid { grid-template-columns: 1fr; padding: 14px 16px; }
+  
+  / Post a Task /
+  .tc-wrap { grid-template-columns: 1fr; padding: 14px 16px; }
+  
+  / Leaderboard /
+  .lb-head { grid-template-columns: 32px 1fr 70px 80px; font-size: 10px; }
+  .lb-row { grid-template-columns: 32px 1fr 70px 80px; }
+  .lb-head > div:nth-child(5),
+  .lb-head > div:nth-child(6),
+  .lb-row > div:nth-child(5),
+  .lb-row > div:nth-child(6) { display: none; }
+
+  
   .footer-grid { grid-template-columns: 1fr; gap: 20px; }
   .footer-bottom { flex-direction: column; gap: 6px; text-align: center; font-size: 9px; }
   .site-footer { padding: 20px 16px 16px; }
