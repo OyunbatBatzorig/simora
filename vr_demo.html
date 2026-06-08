@@ -7,7 +7,7 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
-  background: #0D0F1A; /* Reset from light gray back to the old dark blue/black */
+  background: #0D0F1A; 
   color: #fff; 
   font-family: -apple-system, sans-serif; 
   overflow: hidden; 
@@ -58,7 +58,7 @@ canvas { display: block; }
   <p>Control a Unitree O1 humanoid robot. Pick up the red block and place it in the target zone.</p>
   <button id="vr-btn" onclick="enterVR()">🥽 Enter VR (Meta Quest 3)</button>
   <button id="flat-btn" onclick="startFlat()">▶ Play in Browser</button>
-  <div style="font-size:11px;color:#4A5568;margin-top:4px;">Right stick = move arm · Trigger = elbow · A = Grab · B = Place · Right stick click = Teleport · Left stick click = 1st/3rd person</div>
+  <div style="font-size:11px;color:#4A5568;margin-top:4px;">Right stick = move arm · Trigger = elbow · A/X = Grab & Place · B/Y = Change Perspective</div>
 </div>
 <div id="hud">
   <div class="hud-row">
@@ -73,7 +73,7 @@ canvas { display: block; }
     <div class="hud-ctrl"><span class="kbd">R</span> Reset</div>
     <div class="hud-ctrl"><span class="kbd">VR: Thumbstick</span> Move arm</div>
     <div class="hud-ctrl"><span class="kbd">Trigger</span> Elbow</div>
-    <div class="hud-ctrl"><span class="kbd">A</span> Grab · <span class="kbd">B</span> Place</div>
+    <div class="hud-ctrl"><span class="kbd">A / X</span> Pick up & Place · <span class="kbd">B / Y</span> 1st/3rd Person</div>
   </div>
 </div>
 <div id="step-hud">
@@ -135,22 +135,14 @@ function cyl(rt,rb,h,mat){
   m.castShadow=true; return m;
 }
 
-// ── BUILD ARM
-// Key insight: the arm hangs DOWN (-Y). 
-// The hand should extend in the SAME direction as the forearm (also -Y).
-// So NO rotation on the hand group — fingers just extend further down.
-// To point toward table we rotate the UPPER ARM forward (+X rotation).
 function buildArm(root, side) {
-  // side: -1 = robot's right (screen-left), 1 = robot's left (screen-right)
   const arm = {};
-  const ox = side * 0.22; // shoulder X offset from spine
+  const ox = side * 0.22;
 
-  // Shoulder sphere
   const sh = sph(0.07, joint());
   sh.position.set(ox, 1.40, 0);
   root.add(sh);
 
-  // ── Upper arm group — pivot at shoulder
   const ug = new THREE.Group();
   ug.position.set(ox, 1.40, 0);
   root.add(ug);
@@ -168,7 +160,6 @@ function buildArm(root, side) {
   elbow.position.set(0, -0.27, 0);
   ug.add(elbow);
 
-  // ── Fore arm group — pivot at elbow
   const fg = new THREE.Group();
   fg.position.set(0, -0.27, 0);
   ug.add(fg);
@@ -186,26 +177,21 @@ function buildArm(root, side) {
   wrist.position.set(0, -0.245, 0);
   fg.add(wrist);
 
-  // ── Hand group — NO extra rotation, extends in same -Y direction as arm
   const hg = new THREE.Group();
   hg.position.set(0, -0.245, 0);
   fg.add(hg);
   arm.hg = hg;
 
-  // Palm — flat box extending DOWN from wrist
   const palm = box(0.095, 0.075, 0.055, darkGrey());
   palm.position.set(0, -0.038, 0);
   hg.add(palm);
 
-  // Fingers — extend DOWN from palm (-Y), same direction as whole arm
-  // 3 main fingers
   [-0.028, 0, 0.028].forEach((fz, i) => {
     const finger = box(0.020, 0.065, 0.020, black());
     finger.position.set(0, -0.105, fz);
     hg.add(finger);
   });
 
-  // Thumb — extends sideways from palm
   const thumb = box(0.020, 0.048, 0.020, black());
   thumb.position.set(side * 0.050, -0.068, 0);
   thumb.rotation.z = side * -0.35;
@@ -213,70 +199,58 @@ function buildArm(root, side) {
 
   arm.hg = hg;
 
-  // ── Initial pose: arm reaches forward and slightly down toward table
-  // Positive X rotation = arm swings forward (toward +Z = toward table since root is rotated 180)
-  ug.rotation.x = 0.75;  // reach forward
-  ug.rotation.z = side * -0.22; // slight outward spread
-  fg.rotation.x = 0.45;  // natural elbow bend
+  ug.rotation.x = 0.75;  
+  ug.rotation.z = side * -0.22; 
+  fg.rotation.x = 0.45;  
 
   return arm;
 }
 
-// ── BUILD G1 ROBOT
 function buildG1() {
   const root = new THREE.Group();
   root.position.set(0, 0, -0.45);
-  root.rotation.y = Math.PI; // face table
+  root.rotation.y = Math.PI; 
   scene.add(root);
   robot.root = root;
 
-  // Pelvis
   const pelvis = box(0.30, 0.14, 0.18, darkGrey());
   pelvis.position.set(0, 0.92, 0);
   root.add(pelvis);
 
-  // Torso lower
   const torsoL = box(0.34, 0.20, 0.20, white());
   torsoL.position.set(0, 1.12, 0);
   root.add(torsoL);
 
-  // Torso upper
   const torsoU = box(0.36, 0.22, 0.20, white());
   torsoU.position.set(0, 1.34, 0);
   root.add(torsoU);
 
-  // Chest panel
   const cp = box(0.16, 0.10, 0.03, darkGrey());
   cp.position.set(0, 0.04, 0.10);
   torsoU.add(cp);
 
-  // Cyan diamond
   const dm = box(0.065, 0.065, 0.026, cyan());
   dm.rotation.z = Math.PI/4;
   dm.position.set(0, 0.04, 0.115);
   torsoU.add(dm);
 
-  // Side panels
   [-1,1].forEach(s => {
     const sp = box(0.04, 0.18, 0.16, darkGrey());
     sp.position.set(s*0.19, 0, 0);
     torsoU.add(sp);
   });
 
-  // Back panel
   const bp = box(0.28, 0.18, 0.03, darkGrey());
   bp.position.set(0, 0, -0.115);
   torsoU.add(bp);
 
-  // Neck
   const neck = cyl(0.046, 0.052, 0.09, joint());
   neck.position.set(0, 1.50, 0);
   root.add(neck);
 
-  // ── HEAD — counter-rotated so visor faces table (camera side)
   const headG = new THREE.Group();
   headG.position.set(0, 1.66, 0);
-  headG.rotation.y = Math.PI; // face same direction as camera
+  headG.rotation.y = Math.PI; 
   root.add(headG);
   robot.headG = headG;
 
@@ -305,13 +279,9 @@ function buildG1() {
     headG.add(hs);
   });
 
-  // ── ARMS
-  // robot.rightArm = side 1 (screen-left) — CONTROLLED
-  // robot.leftArm  = side -1 (screen-right) — passive
   robot.rightArm = buildArm(root, 1);
   robot.leftArm  = buildArm(root,  -1);
 
-  // ── LEGS
   [-1,1].forEach(side => {
     const hip = sph(0.065, joint());
     hip.position.set(side*0.10, 0.88, 0);
@@ -339,99 +309,43 @@ function buildG1() {
   });
 }
 
-// ── ROCKET MODEL
-// ── REVISED ROCKET MODEL FOR THREE.JS (WebVR Ready)
 function buildRocketModel() {
   const rg = new THREE.Group();
-  // Brings it forward (from -5.0 to -3.8) and shifts it slightly to the right (1.2)
   rg.position.set(0.0, 3.2, -3.8); 
-  
-  // Tilts the entire coordinate frame so it hangs naturally in open space
   rg.rotation.y = 0;
   scene.add(rg);
 
-  // ── 1. MATERIALS (Upgraded to MeshStandardMaterial for metallic/glass depth)
-  const metalMat = new THREE.MeshStandardMaterial({ 
-    color: 0x7a7c82, 
-    metalness: 0.7, 
-    roughness: 0.35,
-    bumpScale: 0.05
-  });
-  
-  const darkMetal = new THREE.MeshStandardMaterial({ 
-    color: 0x33353b, 
-    metalness: 0.8, 
-    roughness: 0.4 
-  });
-  
-  const goldMat = new THREE.MeshStandardMaterial({ 
-    color: 0xd49b43, 
-    metalness: 0.9, 
-    roughness: 0.2 
-  });
-  
-  const windowMat = new THREE.MeshStandardMaterial({ 
-    color: 0xe6a15c, 
-    roughness: 0.1, 
-    metalness: 0.1,
-    emissive: 0x442200 
-  });
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x7a7c82, metalness: 0.7, roughness: 0.35 });
+  const darkMetal = new THREE.MeshStandardMaterial({ color: 0x33353b, metalness: 0.8, roughness: 0.4 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xd49b43, metalness: 0.9, roughness: 0.2 });
+  const windowMat = new THREE.MeshStandardMaterial({ color: 0xe6a15c, roughness: 0.1, metalness: 0.1, emissive: 0x442200 });
+  const flameMat = new THREE.MeshPhysicalMaterial({ color: 0xee7226, emissive: 0x551100, transparent: true, opacity: 0.85, roughness: 0.2, transmission: 0.4, thickness: 0.5 });
+  const flameMat2 = new THREE.MeshPhysicalMaterial({ color: 0xf3b363, emissive: 0x442200, transparent: true, opacity: 0.75, roughness: 0.2, transmission: 0.3 });
 
-  // Translucent glowing materials for the modern stylized plume/smoke
-  const flameMat = new THREE.MeshPhysicalMaterial({ 
-    color: 0xee7226, 
-    emissive: 0x551100,
-    transparent: true, 
-    opacity: 0.85,
-    roughness: 0.2,
-    transmission: 0.4, // Gives it that polished glass/resin look from the render
-    thickness: 0.5 
-  });
-
-  const flameMat2 = new THREE.MeshPhysicalMaterial({ 
-    color: 0xf3b363, 
-    emissive: 0x442200,
-    transparent: true, 
-    opacity: 0.75,
-    roughness: 0.2,
-    transmission: 0.3
-  });
-
-  // ── 2. OUTER FRAME (Thicker profile matching the render)
   const ringGeo = new THREE.TorusGeometry(1.35, 0.14, 24, 100);
   const outerRing = new THREE.Mesh(ringGeo, darkMetal);
-  // Remove rotation.y and rotate on Z instead if you want to rotate the notch position
-  outerRing.rotation.z = 0; 
   rg.add(outerRing);
 
-  // Beveled interior trim ring
   const innerRing = new THREE.Mesh(new THREE.TorusGeometry(1.22, 0.03, 16, 100), metalMat);
-  innerRing.rotation.z = 0;
   rg.add(innerRing);
 
-  // Framing bracket detail at the top (Adjusted position to match flat orientation)
   const topBracket = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 0.16), darkMetal);
   topBracket.position.set(0, 1.35, 0); 
   rg.add(topBracket);
 
-  // ── 3. MAIN ROCKET GROUP (Tilted out toward the viewer)
   const rocket = new THREE.Group();
-  rocket.rotation.z = -0.55; // Core trajectory tilt
-  rocket.rotation.x = 0.25;  // Subtle Z-depth lean so it doesn't look totally flat
+  rocket.rotation.z = -0.55; 
+  rocket.rotation.x = 0.25;  
   rocket.position.set(0.1, 0.1, 0.1);
   rg.add(rocket);
 
-  // Curved upper/lower main body hull chunks
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.75, 24), metalMat);
-  body.position.set(0, 0, 0);
   rocket.add(body);
 
-  // Rounded aerodynamic nose cone
   const nose = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.55, 24), metalMat);
   nose.position.set(0, 0.60, 0);
   rocket.add(nose);
 
-  // Porthole base assembly (Extruded further outward along Z-axis)
   const portRing = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.03, 12, 32), goldMat);
   portRing.position.set(0, 0.15, 0.24); 
   rocket.add(portRing);
@@ -441,7 +355,6 @@ function buildRocketModel() {
   portGlass.position.set(0, 0.15, 0.24);
   rocket.add(portGlass);
 
-  // Paneled rivet bands
   [-0.22, 0.15].forEach(y => {
     const seam = new THREE.Mesh(new THREE.TorusGeometry(0.265, 0.012, 8, 40), darkMetal);
     seam.rotation.x = Math.PI / 2;
@@ -449,7 +362,6 @@ function buildRocketModel() {
     rocket.add(seam);
   });
 
-  // ── 4. TRUE 3D FINS (Extruded and spaced symmetrically in 3D)
   const finShape = new THREE.Shape();
   finShape.moveTo(0, 0);
   finShape.lineTo(0.32, -0.22);
@@ -459,27 +371,23 @@ function buildRocketModel() {
 
   const extrudeSettings = { depth: 0.04, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.01, bevelThickness: 0.01 };
   const finGeo = new THREE.ExtrudeGeometry(finShape, extrudeSettings);
-  finGeo.center(); // Keeps the rotation pivot point uniform at the core center
+  finGeo.center(); 
 
-  // Left Fin (Angled out slightly to the left side)
   const finL = new THREE.Mesh(finGeo, darkMetal);
   finL.position.set(-0.25, -0.25, 0.05);
   finL.rotation.y = -Math.PI / 4; 
   rocket.add(finL);
 
-  // Right Fin (Rotated exactly 90 degrees outward from the left fin alignment)
   const finR = new THREE.Mesh(finGeo, darkMetal);
   finR.position.set(0.25, -0.25, 0.05);
-  finR.rotation.y = Math.PI / 4;   // Mirror angle balance
+  finR.rotation.y = Math.PI / 4;   
   rocket.add(finR);
   
-  // Rear Fin (Perpendicular stabilizer pointing backward along the Z-axis)
   const finBack = new THREE.Mesh(finGeo, darkMetal);
   finBack.position.set(0, -0.25, -0.24);
-  finBack.rotation.y = Math.PI / 2; // Flat 90-degree twist relative to the front plane
+  finBack.rotation.y = Math.PI / 2; 
   rocket.add(finBack);
 
-  // ── 5. PROPULSION ENGINE & FLUID PLUME
   const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.22, 12), darkMetal);
   nozzle.position.set(0, -0.46, 0);
   rocket.add(nozzle);
@@ -489,26 +397,19 @@ function buildRocketModel() {
   flameGroup.position.set(0, -0.55, 0);
   rocket.add(flameGroup);
 
-  // 1. Core Blast Cone (Lowered segments from 16 to 10 for performance)
   const mainExhaust = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.75, 10), flameMat);
   mainExhaust.position.set(0, -0.32, 0);
   mainExhaust.rotation.z = Math.PI;
   flameGroup.add(mainExhaust);
-
-  // ── 6. MINIMAL VOLUME PUFFS (Only 2 lightweight spheres instead of an array)
-  // Lowered sphere segments from 16x16 to 10x10. This massively cuts down polycount in VR.
   
-  // Left Base Puff
   const puffLeft = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 10), flameMat);
   puffLeft.position.set(-0.18, -0.65, 0.05);
   flameGroup.add(puffLeft);
 
-  // Right Base Puff
   const puffRight = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 10), flameMat2);
   puffRight.position.set(0.18, -0.70, -0.05);
   flameGroup.add(puffRight);
 
-  // Single Point Light (Kept simple for performance)
   const engineLight = new THREE.PointLight(0xff7722, 2.5, 4);
   engineLight.position.set(0, -0.6, 0.2);
   rocket.add(engineLight);
@@ -516,11 +417,8 @@ function buildRocketModel() {
   return rg;
 }
 
-// ── BUILD SCENE
 function buildScene() {
   scene = new THREE.Scene();
-  
-  // Warehouse environment background & fog scattering
   scene.background = new THREE.Color(0x0a0c14);
   scene.fog = new THREE.Fog(0x0a0c14, 8, 25);
 
@@ -535,63 +433,38 @@ function buildScene() {
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // —— DAYTIME LIGHTING SETUP (Clean Showroom Style)
-  // 1. High Global Sky Light (Simulates bright sky scattering)
   const hemiLight = new THREE.HemisphereLight(0xffffff, 0xe0e5ec, 1.1);
   hemiLight.position.set(0, 20, 0);
   scene.add(hemiLight);
 
-  // 2. Strong Crisp Directional Daylight (The Main Sun)
   const sunLight = new THREE.DirectionalLight(0xffffff, 1.4);
-  sunLight.position.set(5, 8, 4); // High angled sun casting natural shadows
+  sunLight.position.set(5, 8, 4); 
   sunLight.castShadow = true;
-  
-  // Optimize shadow maps for crisp, clean daylight edges
   sunLight.shadow.mapSize.set(2048, 2048);
-  sunLight.shadow.camera.left = -6;
-  sunLight.shadow.camera.right = 6;
-  sunLight.shadow.camera.top = 6;
-  sunLight.shadow.camera.bottom = -6;
-  sunLight.shadow.camera.near = 0.5;
-  sunLight.shadow.camera.far = 25;
   sunLight.shadow.bias = -0.0002;
   scene.add(sunLight);
 
-  // 3. Soft Softening Bounce Light (Fills in dark geometric creases)
   const bounceLight = new THREE.DirectionalLight(0xffffff, 0.4);
   bounceLight.position.set(-5, 3, -4);
   scene.add(bounceLight);
 
-  // —— WALL FILL LIGHT (Fixes pitch-black warehouse boundaries)
   const wallGlow = new THREE.DirectionalLight(0xffffff, 0.65);
-  // Positioned deep in front of the table, pointing straight back at the wall face
   wallGlow.position.set(0, 4, 8); 
   scene.add(wallGlow);
 
-  // —— ENVIRONMENT ADJUSTMENTS
-  // Floor (Switch from dark dark metal to bright studio floor)
   const floorGeo = new THREE.PlaneGeometry(30, 30);
-  const floorMat = new THREE.MeshStandardMaterial({ 
-    color: 0xEAEFF8, // Clean showroom floor color
-    roughness: 0.4, 
-    metalness: 0.1 
-  });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0xEAEFF8, roughness: 0.4, metalness: 0.1 });
   const floor = new THREE.Mesh(floorGeo, floorMat);
   floor.rotation.x = -Math.PI/2;
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // Subtle daylight grid lines for orientation
   const grid = new THREE.GridHelper(20, 40, 0xCBD5E1, 0xE2E8F0);
   grid.position.y = 0.001;
   scene.add(grid);
 
-  // Table (Update from dark metallic to clean white/gray workstation matte)
   const tableGeo = new THREE.BoxGeometry(1.7, 0.05, 0.85);
-  const tableMat = new THREE.MeshStandardMaterial({ 
-    color: 0xFFFFFF, 
-    roughness: 0.2 
-  });
+  const tableMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.2 });
   const table = new THREE.Mesh(tableGeo, tableMat);
   table.position.set(0, 1.0, 0.25);
   table.castShadow = true;
@@ -602,7 +475,6 @@ function buildScene() {
   tray.position.set(0.28, 1.035, 0.14); 
   scene.add(tray);
 
-  // Table Legs (Clean aluminum/brushed silver)
   const legMat = new THREE.MeshStandardMaterial({ color: 0xD1D5DB, roughness: 0.3 });
   [[-0.78, 0.5, 0.65], [-0.78, 0.5, -0.15], [0.78, 0.5, 0.65], [0.78, 0.5, -0.15]].forEach(([x, y, z]) => {
     const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.0, 0.06), legMat);
@@ -611,17 +483,14 @@ function buildScene() {
     scene.add(leg);
   });
 
-  // Robot
   buildG1();
 
-  // Red block
   redBlock = box(0.12,0.12,0.12,new THREE.MeshPhongMaterial({color:0xEF4444,shininess:80}));
   redBlock.position.set(-0.28,1.08,0.12); scene.add(redBlock);
   const outline = new THREE.Mesh(new THREE.BoxGeometry(0.135,0.135,0.135),
     new THREE.MeshBasicMaterial({color:0xEF4444,side:THREE.BackSide,transparent:true,opacity:0.25}));
   redBlock.add(outline);
 
-  // Target zone
   const tgMat = new THREE.MeshBasicMaterial({color:0xF59E0B,transparent:true,opacity:0.65});
   targetZone = new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.19,0.005,32),tgMat);
   targetZone.position.set(0.30,1.015,0.12); scene.add(targetZone);
@@ -629,50 +498,26 @@ function buildScene() {
     new THREE.MeshBasicMaterial({color:0xF59E0B,side:THREE.DoubleSide}));
   ring.rotation.x=-Math.PI/2; ring.position.set(0.30,1.017,0.12); scene.add(ring);
 
-  // Labels
   addLabel('Place here', new THREE.Vector3(0.30,1.16,0.12),'#F59E0B');
   addLabel('Red Block',  new THREE.Vector3(-0.28,1.24,0.12),'#EF4444');
 
-  // Shelves
   buildShelf(-3.5,-3.2);
   buildShelf( 3.5,-3.2);
 
-  // Back wall
-  // const wallMat2 = new THREE.MeshLambertMaterial({ color: 0x161A2E });
-  // const wall2 = new THREE.Mesh(new THREE.PlaneGeometry(18, 7), wallMat2);
-  // wall2.position.set(0, 3.5, -5.2);
-  // scene.add(wall2);
-
-  // 3D Rocket on wall
   buildRocketModel();
 
-  // —— WAREHOUSE ROOM STRUCTURE (Encloses the area into an industrial facility)
-  const wallMat = new THREE.MeshStandardMaterial({ 
-    color: 0x1c2333,   // Sleek base metal blue-gray
-    roughness: 0.5, 
-    metalness: 0.2 
-  });
-  const pillarMat = new THREE.MeshStandardMaterial({ 
-    color: 0x121622,   // Darker tone for structural structural contrast
-    roughness: 0.4, 
-    metalness: 0.4 
-  });
-  const metalTrimMat = new THREE.MeshStandardMaterial({ 
-    color: 0x2d3748, 
-    roughness: 0.3, 
-    metalness: 0.7 
-  });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x1c2333, roughness: 0.5, metalness: 0.2 });
+  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x121622, roughness: 0.4, metalness: 0.4 });
+  const metalTrimMat = new THREE.MeshStandardMaterial({ color: 0x2d3748, roughness: 0.3, metalness: 0.7 });
 
   const roomGroup = new THREE.Group();
   scene.add(roomGroup);
 
-  // 1. Back Wall
   const backWall = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), wallMat);
   backWall.position.set(0, 5, -6);
   backWall.receiveShadow = true;
   roomGroup.add(backWall);
 
-  // 2. Left & Right Side Walls
   const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(20, 10), wallMat);
   leftWall.position.set(-10, 5, 4);
   leftWall.rotation.y = Math.PI / 2;
@@ -685,7 +530,6 @@ function buildScene() {
   rightWall.receiveShadow = true;
   roomGroup.add(rightWall);
 
-  // 3. Structural Industrial Pillars (Adds depth along the back wall)
   [-7.5, -3.5, 3.5, 7.5].forEach(x => {
     const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 10, 0.5), pillarMat);
     pillar.position.set(x, 5, -5.8);
@@ -693,22 +537,17 @@ function buildScene() {
     pillar.receiveShadow = true;
     roomGroup.add(pillar);
 
-    // Cross beams connecting pillars near the ceiling
     const crossBeam = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.15, 0.3), metalTrimMat);
     crossBeam.position.set(x + 2, 9.2, -5.7);
     roomGroup.add(crossBeam);
   });
 
-  // 4. —— INTEGRATED WALL LIGHTING STRIPS (Now lighting Back, Left, and Right walls)
-  const stripColor = 0x38bdf8; // Bright modern cyber-blue
+  const stripColor = 0x38bdf8; 
   const wallLightMat = new THREE.MeshBasicMaterial({ color: stripColor });
   
-  // Two clean horizontal rows of glowing tube arrays running across all wall segments
   [3.2, 6.5].forEach(yHeight => {
-    
-    // A. BACK WALL STRIPS & LIGHTS
     const backStrip = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 20, 8), wallLightMat);
-    backStrip.rotation.z = Math.PI / 2; // Horizontal orientation
+    backStrip.rotation.z = Math.PI / 2; 
     backStrip.position.set(0, yHeight, -5.75);
     roomGroup.add(backStrip);
 
@@ -716,9 +555,8 @@ function buildScene() {
     backGlow.position.set(0, yHeight, -5.5);
     roomGroup.add(backGlow);
 
-    // B. LEFT WALL STRIPS & LIGHTS (Flushed along x = -9.75)
     const leftStrip = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 20, 8), wallLightMat);
-    leftStrip.rotation.x = Math.PI / 2; // Runs forward along the Z axis
+    leftStrip.rotation.x = Math.PI / 2; 
     leftStrip.position.set(-9.75, yHeight, 4);
     roomGroup.add(leftStrip);
 
@@ -726,9 +564,8 @@ function buildScene() {
     leftGlow.position.set(-9.5, yHeight, 4);
     roomGroup.add(leftGlow);
 
-    // C. RIGHT WALL STRIPS & LIGHTS (Flushed along x = 9.75)
     const rightStrip = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 20, 8), wallLightMat);
-    rightStrip.rotation.x = Math.PI / 2; // Runs forward along the Z axis
+    rightStrip.rotation.x = Math.PI / 2; 
     rightStrip.position.set(9.75, yHeight, 4);
     roomGroup.add(rightStrip);
 
@@ -737,7 +574,6 @@ function buildScene() {
     roomGroup.add(rightGlow);
   });
 
-  // 5. Industrial Ceiling Beams (Cast structural shadows across the floor)
   for (let z = -4; z <= 12; z += 4) {
     const roofBeam = new THREE.Mesh(new THREE.BoxGeometry(20, 0.25, 0.15), metalTrimMat);
     roofBeam.position.set(0, 9.8, z);
@@ -745,7 +581,6 @@ function buildScene() {
     roomGroup.add(roofBeam);
   }
 
-  // 6. High-Bay Warehouse Indicator Lights (Soft background glowing dots on the ceiling)
   for (let bx = -6; bx <= 6; bx += 4) {
     for (let bz = -2; bz <= 8; bz += 5) {
       const highBay = new THREE.Mesh(
@@ -757,7 +592,6 @@ function buildScene() {
     }
   }
 
-  // Controls
   controls = new OrbitControls(camera,renderer.domElement);
   controls.target.set(0,1.2,0);
   controls.enableDamping=true; controls.dampingFactor=0.06;
@@ -802,16 +636,15 @@ function addLabel(text,pos,color){
   sp.position.copy(pos); sp.scale.set(0.45,0.11,1); scene.add(sp);
 }
 
-// ── CONTROLLER STATE
+// ── CONTROLLER STATE (Gates applied to prevent multi-firing freezes)
 let prevAPressed = false, prevBPressed = false;
-let prevRStickPress = false, prevLStickPress = false;
+let prevXPressed = false, prevYPressed = false;
 let isFirstPerson = false;
 
 function teleportToRobot() {
-  // Snap VR camera to right in front of table
   const xrCam = renderer.xr.getCamera();
-  if (xrCam) {
-    xrCam.parent.position.set(0, 0, 2.8); // in front of table facing robot
+  if (xrCam && xrCam.parent) {
+    xrCam.parent.position.set(0, 0, 2.8); 
   }
   updateStatus('● Teleported to table', '#00D4FF');
   setTimeout(()=>updateStatus(isFirstPerson ? '● 1st Person' : '● Ready','#10B981'), 1500);
@@ -820,12 +653,11 @@ function teleportToRobot() {
 function enterFirstPerson() {
   isFirstPerson = true;
   if (robot.headG) robot.headG.visible = false;
-  // Move camera rig to robot head position (robot is at z=-0.45, rotated 180, head at y=1.66)
   const xrCam = renderer.xr.getCamera();
   if (xrCam && xrCam.parent) {
-    xrCam.parent.position.set(0, 0, -0.1); // places eyes near robot head
+    xrCam.parent.position.set(0, 0, -0.1); 
   }
-  updateStatus('● 1st Person — You are the robot', '#A78BFA');
+  updateStatus('● 1st Person — Head View', '#A78BFA');
 }
 
 function exitFirstPerson() {
@@ -848,8 +680,8 @@ function handleControllers() {
     const axes = gp.axes;
     const buttons = gp.buttons;
 
+    // ── RIGHT HAND CONTROLLER
     if (source.handedness === 'right' && robot.rightArm) {
-      // Quest 3 right stick: axes[2]=X, axes[3]=Y
       const stickX = (axes.length > 2 ? axes[2] : axes[0]) || 0;
       const stickY = (axes.length > 3 ? axes[3] : axes[1]) || 0;
       const spd = 0.03;
@@ -859,73 +691,62 @@ function handleControllers() {
       if (Math.abs(stickY) > 0.12) ug.rotation.x += stickY * spd;
       if (Math.abs(stickX) > 0.12) ug.rotation.z += stickX * spd;
 
-      // Trigger → bend elbow
       const trigVal = buttons[0] ? buttons[0].value : 0;
       if (trigVal > 0.1) fg.rotation.x += trigVal * 0.04;
-      else if (fg.rotation.x > 0.45) fg.rotation.x -= 0.015;
+      else if (fg.rotation.x > 0.45 && !grabbed) fg.rotation.x -= 0.015;
 
-      // Grip → also bend elbow
       const gripVal = buttons[1] ? buttons[1].value : 0;
       if (gripVal > 0.1) fg.rotation.x += gripVal * 0.03;
 
-      // A button (buttons[4]) → Grab
+      // [A Button] -> Pick up / Place (Grab Toggle)
       const aPressed = buttons[4] && buttons[4].pressed;
-      if (aPressed && !prevAPressed) toggleGrab();
+      if (aPressed && !prevAPressed) {
+        toggleGrab();
+      }
       prevAPressed = aPressed || false;
 
-      // B button (buttons[5]) → Release
+      // [B Button] -> Perspective Toggle (1st / 3rd Person)
       const bPressed = buttons[5] && buttons[5].pressed;
-      if (bPressed && !prevBPressed && grabbed) toggleGrab();
-      prevBPressed = bPressed || false;
-
-      // Right stick CLICK (buttons[3]) → Teleport
-      const rClick = buttons[3] && buttons[3].pressed;
-      if (rClick && !prevRStickPress) teleportToRobot();
-      prevRStickPress = rClick || false;
-    }
-
-    if (source.handedness === 'left') {
-      // Left stick CLICK (buttons[3]) → toggle 1st/3rd person
-      const lClick = buttons[3] && buttons[3].pressed;
-      if (lClick && !prevLStickPress) {
+      if (bPressed && !prevBPressed) {
         if (isFirstPerson) exitFirstPerson();
         else enterFirstPerson();
       }
-      prevLStickPress = lClick || false;
+      prevBPressed = bPressed || false;
+    }
 
-      // X button (buttons[4]) → Teleport
-      const xBtn = buttons[4] && buttons[4].pressed;
-      if (xBtn) teleportToRobot();
+    // ── LEFT HAND CONTROLLER
+    if (source.handedness === 'left') {
+      // [X Button] -> Pick up / Place (Grab Toggle)
+      const xPressed = buttons[4] && buttons[4].pressed;
+      if (xPressed && !prevXPressed) {
+        toggleGrab();
+      }
+      prevXPressed = xPressed || false;
+
+      // [Y Button] -> Perspective Toggle (1st / 3rd Person)
+      const yPressed = buttons[5] && buttons[5].pressed;
+      if (yPressed && !prevYPressed) {
+        if (isFirstPerson) exitFirstPerson();
+        else enterFirstPerson();
+      }
+      prevYPressed = yPressed || false;
     }
   }
 }
 
-
 function animate(){
   const delta=clock.getDelta(); animTime+=delta; controls.update();
 
-  // Handle VR controllers
   handleControllers();
 
-  //requestAnimationFrame(animate);
-
-  // 1. Locate the flame group inside the scene
   const flames = scene.getObjectByName("rocketFlames");
-  
   if (flames) {
-    // 2. Use the system clock or performance time to create a smooth wave
-    const time = performance.now() * 0.04 ; // Adjust multiplier to speed up/slow down pulse
-    
-    // Math.sin fluctuates between -1 and 1. 
-    // This formula maps it so the scale smoothly pulses between 0.85 (smaller) and 1.15 (bigger)
+    const time = performance.now() * 0.04 ; 
     const pulseScaleY = 1.0 + Math.sin(time) * 0.15;
-    const pulseScaleXZ = 1.0 + Math.cos(time * 1.5) * 0.08; // Subtle variance on width
-    
+    const pulseScaleXZ = 1.0 + Math.cos(time * 1.5) * 0.08; 
     flames.scale.set(pulseScaleXZ, pulseScaleY, pulseScaleXZ);
   }
   
-
-  // Idle sway
   if(robot.root) robot.root.position.y=Math.sin(animTime*1.2)*0.004;
   if(robot.headG) robot.headG.rotation.y=Math.PI+Math.sin(animTime*0.4)*0.05;
 
@@ -939,7 +760,6 @@ function animate(){
     if(keys['KeyQ']){ fg.rotation.x-=spd*1.5; }
     if(keys['KeyE']){ fg.rotation.x+=spd*1.5; }
 
-    // Block follows hand when grabbed
     if(grabbed){
       const hw=new THREE.Vector3();
       robot.rightArm.hg.getWorldPosition(hw);
@@ -950,38 +770,27 @@ function animate(){
     }
   }
 
-  // Target pulse
   const p=0.96+Math.sin(animTime*3)*0.04;
   targetZone.scale.set(p,1,p);
 
-  // Rocket animation
-  if (robot.rocketGroup) {
-    robot.rocketGroup.rotation.y = Math.sin(animTime*0.3)*0.04;
-  }
-  if (robot.flameGroup) {
-    robot.flameGroup.scale.y = 0.9 + Math.sin(animTime*8)*0.12;
-    robot.flameGroup.scale.x = 0.95 + Math.sin(animTime*6)*0.06;
-  }
-  if (robot.flameLight) {
-    robot.flameLight.intensity = 1.0 + Math.sin(animTime*7)*0.4;
-  }
   renderer.render(scene,camera);
 }
 
 function toggleGrab(){
-  if(isComplete)return;
+  if(isComplete) return;
   if(!grabbed){
     grabbed=true;
     updateStatus('● Block Grabbed','#00D4FF');
     document.getElementById('s2').className='step-item done';
     document.getElementById('s2').textContent='✓ Grabbed red block';
     document.getElementById('s3').className='step-item active';
-    if(robot.rightArm) robot.rightArm.fg.rotation.x=0.7; // close elbow
+    if(robot.rightArm) robot.rightArm.fg.rotation.x=0.7; 
   } else {
     grabbed=false;
     const dist=Math.sqrt(Math.pow(redBlock.position.x-targetZone.position.x,2)+Math.pow(redBlock.position.z-targetZone.position.z,2));
-    if(dist<0.40){ completeEpisode(); }
-    else{
+    if(dist<0.40){ 
+      completeEpisode(); 
+    } else {
       updateStatus('● Released','#F59E0B');
       if(robot.rightArm) robot.rightArm.fg.rotation.x=0.45;
     }
@@ -999,7 +808,11 @@ function completeEpisode(){
   updateStatus('● Complete!','#10B981');
   redBlock.position.copy(targetZone.position); redBlock.position.y=1.06;
   targetZone.material.color.set(0x10B981);
-  setTimeout(()=>document.getElementById('success-screen').classList.add('show'),800);
+  
+  // Handled cleanly; UI updates seamlessly without thread locks
+  setTimeout(() => {
+    document.getElementById('success-screen').classList.add('show');
+  }, 800);
 }
 
 function startTimer(){
